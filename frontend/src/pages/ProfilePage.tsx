@@ -1,0 +1,3 @@
+import { useQuery } from '@tanstack/react-query';
+import { getMe } from '../api/repositories';
+export function ProfilePage() { const {data, isLoading, isError} = useQuery({queryKey:['me'], queryFn:getMe}); if(isLoading) return <p>Loading profile…</p>; if(isError || !data) return <p className="text-red-400">Could not load your profile.</p>; return <div className="flex gap-5 rounded border border-slate-800 bg-slate-900 p-6">{data.avatar_url && <img src={data.avatar_url} className="h-20 w-20 rounded-full"/>}<div><h1 className="text-2xl font-bold">{data.name ?? data.login}</h1><p className="text-slate-400">@{data.login}</p><p className="mt-4 text-sm text-slate-400">Connected through GitHub OAuth.</p></div></div>; }
