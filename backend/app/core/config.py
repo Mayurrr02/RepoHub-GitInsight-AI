@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     github_client_secret: str = ""
     github_redirect_uri: str = "http://localhost:8000/api/v1/auth/github/callback"
     frontend_url: str = "http://localhost:5173"
-    openai_api_key: str = ""
-    openai_model: str = "gpt-5.5"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3.5-flash"
 
 
 @lru_cache

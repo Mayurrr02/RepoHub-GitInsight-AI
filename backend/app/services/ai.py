@@ -20,11 +20,18 @@ def generate_insights(db: Session, user: User, question: str | None = None) -> s
     context = analytics_context(db, user)
     prompt = question or "Create concise repository summaries, developer strengths and weaknesses, skill extraction, a learning roadmap, resume bullets, career recommendations, and technical-debt priorities from this data. Be candid and do not invent evidence."
     settings = get_settings()
-    if settings.openai_api_key:
-        from openai import OpenAI
-        response = OpenAI(api_key=settings.openai_api_key).responses.create(model=settings.openai_model, instructions="You are a precise engineering career analyst. Use only provided GitHub analytics.", input=f"{context}\n\nQuestion: {prompt}")
-        return response.output_text
-    return "AI is not configured. Add OPENAI_API_KEY to .env, rebuild the backend, and sync again. Available context: " + context
+    if settings.gemini_api_key:
+        from google import genai
+        client = genai.Client(api_key=settings.gemini_api_key)
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            config=genai.types.GenerateContentConfig(
+                system_instruction="You are a precise engineering career analyst. Use only provided GitHub analytics."
+            ),
+            contents=f"{context}\n\nQuestion: {prompt}",
+        )
+        return response.text
+    return "AI is not configured. Add GEMINI_API_KEY to .env, rebuild the backend, and sync again. Available context: " + context
 
 def create_pdf(title: str, insights: str, db: Session, user: User) -> bytes:
     buffer = BytesIO(); styles = getSampleStyleSheet()
