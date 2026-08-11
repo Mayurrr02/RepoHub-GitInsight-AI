@@ -231,6 +231,40 @@ Build and start the application.
 docker compose up --build
 ```
 
+---
+
+## Free live deployment (Render + Neon + Upstash)
+
+This repository includes [`render.yaml`](./render.yaml), which deploys the React
+frontend and FastAPI API from one Render Blueprint. The API starts its Celery
+worker in the same free web service so repository sync works without paying for
+a background-worker instance.
+
+The result uses free `*.onrender.com` URLs. A custom `.com`, `.in`, etc. domain
+is not free, but can be connected to Render later without changing the app.
+
+1. Create a free [Neon](https://neon.com) project and copy its **pooled**
+   Postgres connection string. Convert its scheme from `postgresql://` to
+   `postgresql+psycopg://` before using it as `DATABASE_URL`.
+2. Create a free [Upstash Redis](https://upstash.com/redis) database and copy
+   its TLS Redis URL (`rediss://...`) as `REDIS_URL`.
+3. Push this repository to GitHub, then in Render choose **New → Blueprint**
+   and select the repository. Render discovers `render.yaml` and creates both
+   services.
+4. In the Blueprint form, enter the Neon and Upstash URLs plus new GitHub OAuth
+   credentials. Let Render generate `JWT_SECRET_KEY`; leave `GEMINI_API_KEY`
+   empty if the AI feature is not needed.
+5. Once the API has deployed, copy its `https://...onrender.com` address. Set:
+   - `GITHUB_REDIRECT_URI` to
+     `https://YOUR-API.onrender.com/api/v1/auth/github/callback`
+   - `VITE_API_URL` to `https://YOUR-API.onrender.com/api/v1`
+6. Deploy the static site, copy its `https://...onrender.com` address, then set
+   the API's `FRONTEND_URL` to that address and redeploy the API.
+7. In the GitHub OAuth App settings, set the same callback URL from step 5.
+
+Never commit `.env` or any credential. Rotate any key that was previously
+stored in a tracked file or shared outside your machine.
+
 Frontend:
 
 ```
