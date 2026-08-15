@@ -21,6 +21,9 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         response: Response = await call_next(request)
         headers = response.headers
         headers["X-Content-Type-Options"] = "nosniff"
@@ -41,6 +44,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 class ObservabilityMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         start_time = time.time()
         path = request.url.path
         method = request.method
@@ -61,7 +67,6 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
             latency_ms = round(duration * 1000, 2)
 
             if not skip_metrics:
-                # Group path templates to avoid unbounded metric cardinality
                 normalized_path = path
                 if path.startswith("/api/v1/organizations/"):
                     parts = path.split("/")
@@ -81,7 +86,6 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 ).observe(duration)
 
             client_ip = request.client.host if request.client else "-"
-            # Log structured access line
             log_record = logging.LogRecord(
                 name="repohub.access",
                 level=logging.INFO,

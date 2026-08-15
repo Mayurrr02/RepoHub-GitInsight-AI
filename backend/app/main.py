@@ -48,11 +48,24 @@ app.add_middleware(SecurityHeadersMiddleware)
 # 3. Request Correlation ID Middleware
 app.add_middleware(CorrelationIdMiddleware)
 
-# 4. CORS Middleware
+# 4. CORS Middleware (Outermost)
 settings = get_settings()
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:80",
+    "http://localhost:3000",
+    "http://localhost",
+]
+if settings.frontend_url:
+    clean_frontend = settings.frontend_url.rstrip("/")
+    if clean_frontend not in allowed_origins:
+        allowed_origins.append(clean_frontend)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:80"],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https://.*\.onrender\.com$|^http://localhost(:\d+)?$|^http://127\.0\.0\.1(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,12 +76,17 @@ app.add_middleware(
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     req_id = getattr(request.state, "request_id", "-")
+    origin = request.headers.get("origin", "*")
     return JSONResponse(
         status_code=422,
         content={
             "detail": exc.errors(),
             "request_id": req_id,
         },
+        headers={
+            "Access-Control-Allow-Origin": origin if origin != "null" else "*",
+            "Access-Control-Allow-Credentials": "true",
+        }
     )
 
 
@@ -76,9 +94,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def unhandled_exception(request: Request, exc: Exception):
     req_id = getattr(request.state, "request_id", "-")
     logger.exception("Unhandled server exception", exc_info=exc, extra={"request_id": req_id})
+    origin = request.headers.get("origin", "*")
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error", "request_id": req_id},
+        headers={
+            "Access-Control-Allow-Origin": origin if origin != "null" else "*",
+            "Access-Control-Allow-Credentials": "true",
+        }
     )
 
 
