@@ -10,6 +10,9 @@ services:
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
+      # Render defaults to Python 3.14. Pin the version used by this project.
+      - key: PYTHON_VERSION
+        value: 3.12.8
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL

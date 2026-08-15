@@ -1,7 +1,15 @@
+import enum
 from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Float, Boolean, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+
+
+class OrgRole(str, enum.Enum):
+    OWNER = "owner"
+    ADMIN = "admin"
+    MEMBER = "member"
+    VIEWER = "viewer"
 
 
 class User(Base):
@@ -14,6 +22,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     github_account: Mapped["GitHubAccount"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
     repositories: Mapped[list["Repository"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    organization_memberships: Mapped[list["OrganizationMember"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    owned_organizations: Mapped[list["Organization"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
 
 
 class GitHubAccount(Base):
@@ -23,6 +33,46 @@ class GitHubAccount(Base):
     access_token: Mapped[str] = mapped_column(Text)
     scope: Mapped[str | None] = mapped_column(String(255))
     user: Mapped[User] = relationship(back_populates="github_account")
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(2048))
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    owner: Mapped[User] = relationship(back_populates="owned_organizations", foreign_keys=[owner_id])
+    members: Mapped[list["OrganizationMember"]] = relationship(back_populates="organization", cascade="all, delete-orphan")
+    repositories: Mapped[list["OrganizationRepository"]] = relationship(back_populates="organization", cascade="all, delete-orphan")
+    audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="organization", cascade="all, delete-orphan")
+
+
+class OrganizationMember(Base):
+    __tablename__ = "organization_members"
+    __table_args__ = (UniqueConstraint("organization_id", "user_id", name="uq_org_member"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(32), default=OrgRole.MEMBER.value)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    organization: Mapped[Organization] = relationship(back_populates="members")
+    user: Mapped[User] = relationship(back_populates="organization_memberships")
+
+
+class OrganizationRepository(Base):
+    __tablename__ = "organization_repositories"
+    __table_args__ = (UniqueConstraint("organization_id", "repository_id", name="uq_org_repo"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    organization: Mapped[Organization] = relationship(back_populates="repositories")
+    repository: Mapped["Repository"] = relationship(back_populates="organization_links")
 
 
 class Repository(Base):
@@ -39,7 +89,9 @@ class Repository(Base):
     language: Mapped[str | None] = mapped_column(String(64))
     stars: Mapped[int] = mapped_column(default=0)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     user: Mapped[User] = relationship(back_populates="repositories")
+    organization_links: Mapped[list[OrganizationRepository]] = relationship(back_populates="repository", cascade="all, delete-orphan")
 
 
 class Commit(Base):
@@ -144,6 +196,7 @@ class RepositoryMetric(Base):
     maintenance_score: Mapped[float] = mapped_column(Float, default=0)
     calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+
 class AIReport(Base):
     __tablename__ = "ai_reports"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -153,6 +206,7 @@ class AIReport(Base):
     file_path: Mapped[str | None] = mapped_column(String(1024))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -172,3 +226,20 @@ class SyncJob(Base):
     error: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    action: Mapped[str] = mapped_column(String(128), index=True)
+    resource_type: Mapped[str] = mapped_column(String(64), index=True)
+    resource_id: Mapped[str | None] = mapped_column(String(128))
+    details: Mapped[str | None] = mapped_column(Text)
+    ip_address: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    user: Mapped[User | None] = relationship()
+    organization: Mapped[Organization | None] = relationship(back_populates="audit_logs")
+

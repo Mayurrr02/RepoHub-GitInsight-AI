@@ -1,388 +1,180 @@
-# RepoHub
+# RepoHub Enterprise
 
-RepoHub is a full-stack GitHub Developer Analytics platform that helps developers gain meaningful insights into their GitHub activity. Instead of simply displaying repository information, RepoHub collects data from GitHub, processes it in the background, calculates engineering metrics, and presents them through an interactive dashboard. It also includes an AI assistant that answers questions based on the synchronized analytics and generates downloadable engineering reports.
+RepoHub is a modern, enterprise-grade GitHub Engineering Analytics and Team Intelligence SaaS platform. RepoHub collects data from GitHub repositories, ingests activity asynchronously via background Celery workers, computes engineering metrics, contributor rankings, and review bottlenecks, and delivers real-time updates via WebSockets and an interactive React dashboard.
 
-The project is built to demonstrate a production-style software architecture using FastAPI, React, PostgreSQL, Redis, Celery, Docker, and OpenAI.
-
----
-
-# Features
-
-## GitHub Authentication
-
-- Secure GitHub OAuth login
-- JWT-based authentication
-- Protected user dashboard
-- Automatic user profile synchronization
-
-## Repository Synchronization
-
-Users can import all of their GitHub repositories with a single click.
-
-Repository synchronization runs asynchronously using Celery and Redis, allowing the application to remain responsive while importing large amounts of GitHub data.
-
-The synchronization imports:
-
-- Repositories
-- Commits
-- Pull Requests
-- Pull Request Reviews
-- Issues
-- Releases
-- Contributors
-- Programming Languages
-- Branches
+It includes an AI Assistant powered by Google Gemini and OpenAI for engineering insights and automated PDF reports, alongside full Prometheus & Grafana observability, structured JSON logging, role-based access control (RBAC), rate limiting, audit logs, CI/CD automation, and production Nginx orchestration.
 
 ---
 
-# Developer Analytics
+## Key Features
 
-RepoHub processes imported GitHub data to generate useful engineering insights.
+### 🏢 Multi-Tenant Organizations & RBAC
+- Organization workspaces with custom slugs and branding
+- Hierarchical Role-Based Access Control: `Owner`, `Admin`, `Member`, `Viewer`
+- Repository association and team ownership mapping
+- Complete security audit trail for administrative actions
 
-### Developer Metrics
+### 📊 Team Analytics & Developer Intelligence
+- **Contributor Rankings**: Impact score leaderboard weighted by commits, merged PRs, and submitted code reviews
+- **Team Productivity**: 12-week velocity breakdown, sprint velocity scores, and weekly activity charts
+- **Review Bottlenecks**: Time-to-first-review analysis, merge turnaround tracking, and open unreviewed PR queues
+- **Developer Metrics**: Daily coding streak, estimated hours, review scores, and weekend activity percentages
+- **Repository Health**: Merge rates, issue resolution efficiency, maintenance scores, and language distributions
 
-- Commit Frequency
-- Daily Coding Streak
-- Estimated Coding Hours
-- Weekend Activity
-- Code Review Score
+### ⚡ Real-Time WebSockets & Live Progress
+- Live repository sync progress stream (0–100%) with step-by-step UI toast updates
+- Real-time notification push over WebSockets powered by Redis Pub/Sub
+- Connection status badge with auto-reconnection and heartbeat ping/pong
 
-### Repository Metrics
+### 🤖 AI Engineering Intelligence & PDF Reports
+- Analytics-grounded AI chat assistant powered by Gemini / OpenAI
+- Generates downloadable engineering reports in PDF format
 
-- Repository Health Score
-- Merge Efficiency
-- Issue Resolution Score
-- Documentation Score
-- Maintenance Score
-- Activity Score
+### 📈 Monitoring & Observability
+- **Prometheus**: Native `/metrics` scrape endpoint tracking HTTP requests, latency percentiles (P50/P95), active WebSockets, Celery task throughput, and audit events
+- **Grafana**: Pre-provisioned dashboards with custom dark-themed SaaS monitoring panels
+- **Structured Logging**: Production JSON log format with correlation IDs (`X-Request-ID`)
+- **Multi-Tier Health Checks**: `/health` (component diagnostics), `/health/ready` (readiness), `/health/live` (liveness)
 
-The analytics dashboard includes:
-
-- Summary metric cards
-- 90-day commit activity chart
-- Language distribution
-- Repository health overview
-- Historical activity
-
----
-
-# AI Assistant
-
-When an OpenAI API key is configured, RepoHub enables an AI assistant that answers questions using only the synchronized GitHub analytics.
-
-Example questions:
-
-- How consistent has my development been?
-- Which repository needs the most maintenance?
-- What are my strongest technical skills?
-- Which project is most suitable for my portfolio?
-- What should I improve before interviews?
-
-The AI assistant can also generate a downloadable PDF engineering report containing:
-
-- Developer statistics
-- Repository summaries
-- Engineering insights
-- Improvement recommendations
+### 🔒 Enterprise Security & Governance
+- Token-bucket rate limiting middleware with `X-RateLimit-*` response headers
+- Security Headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+- Immutable audit logs tracking security and team management actions
+- Strict Pydantic input validation and consistent error handling
 
 ---
 
-# Tech Stack
+## Tech Stack
 
-## Frontend
-
-- React
-- Vite
-- TypeScript
-- React Router
-- Axios
-
-## Backend
-
-- FastAPI
-- SQLAlchemy
-- Alembic
-- PostgreSQL
-- Redis
-- Celery
-- JWT Authentication
-
-## External Services
-
-- GitHub REST API
-- OpenAI API
+| Layer | Technologies |
+|---|---|
+| **Frontend** | React 18, Vite, TypeScript, Tailwind CSS, TanStack React Query, Zustand, React Router |
+| **Backend** | FastAPI, SQLAlchemy 2, Alembic, Pydantic v2, PyJWT, ReportLab |
+| **Workers & Cache** | Celery, Redis 7 (Broker, Backend & Pub/Sub) |
+| **Database** | PostgreSQL 16 (Relational & Analytical storage) |
+| **Edge & Proxy** | Nginx 1.27 (Reverse Proxy, SSL, WebSocket Upgrade, Rate Limiting) |
+| **Observability** | Prometheus, Grafana, Structured JSON Logger |
+| **CI/CD** | GitHub Actions (Lint, Test, Build, Docker Image Validation) |
 
 ---
 
-# Architecture
+## Architecture
 
 ```mermaid
-flowchart LR
-    UI[React + Vite]
-    API[FastAPI]
-    PG[(PostgreSQL)]
-    REDIS[(Redis)]
-    WORKER[Celery Worker]
-    GH[GitHub API]
-    AI[OpenAI]
+flowchart TB
+    subgraph Client ["Client Layer"]
+        SPA["React 18 + Vite SPA"]
+        WS["WebSocket Client"]
+    end
 
-    UI -->|GitHub OAuth| GH
-    GH --> API
+    subgraph Edge ["Edge & Reverse Proxy"]
+        NGINX["Nginx 1.27\n- Reverse Proxy & SSL Termination\n- WebSocket Upgrade\n- Rate Limiting Zones\n- Security Headers & Gzip"]
+    end
 
-    UI -->|JWT Requests| API
+    subgraph API ["Application Server (FastAPI)"]
+        Router["API Router (/api/v1)"]
+        AuthModule["OAuth & JWT Security"]
+        RBAC["RBAC Engine\n(Owner, Admin, Member, Viewer)"]
+        RateLimiter["Token Bucket Rate Limiter"]
+        Logging["Structured JSON Logger"]
+        WSManager["WebSocket Connection Manager"]
+        MetricsExport["Prometheus Metrics (/metrics)"]
+        HealthEndpoint["Health Check Engine (/health)"]
+    end
 
-    API --> PG
+    subgraph Processing ["Distributed Task Processing (Celery)"]
+        TaskWorker["Celery Worker\n- GitHub Ingestion\n- Metric Computations\n- Real-time Progress Broadcast"]
+    end
 
-    API -->|Queue Repository Sync| REDIS
-    REDIS --> WORKER
+    subgraph Storage ["Persistent & State Layer"]
+        Postgres[("PostgreSQL 16\n- Users & Organizations\n- Repositories & Commits\n- PRs, Reviews & Metrics\n- Audit Logs & Notifications")]
+        Redis[("Redis 7\n- Celery Broker & Backend\n- Real-time Event Pub/Sub\n- Rate Limiting Cache")]
+    end
 
-    WORKER --> GH
-    WORKER --> PG
+    subgraph Monitoring ["Observability & Monitoring"]
+        Prometheus["Prometheus Server"]
+        Grafana["Grafana Dashboards"]
+    end
 
-    API --> AI
+    SPA -->|HTTPS / REST| NGINX
+    WS -->|WSS / WebSocket| NGINX
+    NGINX -->|HTTP Proxy| Router
+    NGINX -->|Upgrade WebSocket| WSManager
+
+    Router --> AuthModule
+    Router --> RBAC
+    Router --> RateLimiter
+    Router --> Logging
+    Router --> Postgres
+    Router -->|Enqueue Task| Redis
+
+    Redis -->|Tasks| TaskWorker
+    TaskWorker -->|Fetch Data| GitHubAPI["GitHub REST API"]
+    TaskWorker -->|Persist Records| Postgres
+    TaskWorker -->|Publish Realtime Event| Redis
+    Redis -->|Pub/Sub Event| WSManager
+    WSManager -->|Live Push| WS
+
+    Prometheus -->|Scrape /metrics| MetricsExport
+    Grafana -->|Query Metrics| Prometheus
 ```
 
 ---
 
-# How It Works
+## Comprehensive Documentation
 
-1. The user signs in using GitHub OAuth.
-2. FastAPI authenticates the user and generates JWT tokens.
-3. The user requests a repository synchronization.
-4. A Celery worker imports GitHub data in the background.
-5. Repository information is stored in PostgreSQL.
-6. Analytics are calculated from the imported data.
-7. The React dashboard visualizes the metrics.
-8. The AI assistant answers questions based on synchronized analytics.
+- 📐 [Architecture Documentation](docs/ARCHITECTURE.md)
+- 🗄️ [Entity-Relationship (ER) Diagrams](docs/ER_DIAGRAMS.md)
+- 📚 [REST & WebSocket API Reference](docs/API_REFERENCE.md)
+- 🚀 [Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- 📈 [Scaling & High-Availability Guide](docs/SCALING_GUIDE.md)
+- 💻 [Developer Handbook](docs/DEVELOPER_HANDBOOK.md)
 
 ---
 
-# API Endpoints
+## Quick Start
 
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/api/v1/auth/github/login` | Start GitHub OAuth |
-| GET | `/api/v1/auth/github/callback` | GitHub OAuth callback |
-| POST | `/api/v1/auth/refresh` | Refresh access token |
-| POST | `/api/v1/auth/logout` | Logout |
-| GET | `/api/v1/users/me` | Current authenticated user |
-| GET | `/api/v1/repositories` | List user repositories |
-| POST | `/api/v1/repositories/sync` | Queue repository synchronization |
-| GET | `/api/v1/analytics/developer` | Developer analytics |
-| GET | `/api/v1/analytics/repository` | Repository analytics |
-| GET | `/api/v1/analytics/team` | Team analytics |
-| GET | `/api/v1/analytics/history` | Historical analytics |
-| POST | `/api/v1/ai/chat` | AI-powered analytics assistant |
-| POST | `/api/v1/ai/report` | Generate engineering report |
-
----
-
-# Getting Started
-
-## Prerequisites
-
-- Docker
-- Docker Compose
-- GitHub OAuth Application
-- (Optional) OpenAI API Key
-
----
-
-## Environment Variables
-
-Copy the example environment file.
+### 1. Run with Docker Compose (Production Setup)
 
 ```bash
-cp .env.example .env
+docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-Configure the following variables:
+Services started:
+- **Frontend & App Gateway**: `http://localhost`
+- **FastAPI Backend**: `http://localhost/api/v1` (Swagger docs at `http://localhost/docs`)
+- **Prometheus Metrics**: `http://localhost:9090`
+- **Grafana Monitoring**: `http://localhost:3000` (User: `admin` / Password: `admin`)
 
-```env
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
+### 2. Local Development
 
-JWT_SECRET_KEY=
-
-DATABASE_URL=
-
-REDIS_URL=
-
-OPENAI_API_KEY=
-```
-
----
-
-## GitHub OAuth Setup
-
-Create a GitHub OAuth Application and configure the callback URL:
-
-```
-http://localhost:8000/api/v1/auth/github/callback
-```
-
----
-
-## Running with Docker
-
-Build and start the application.
-
-```bash
-docker compose up --build
-```
-
----
-
-## Free live deployment (Render + Neon + Upstash)
-
-This repository includes [`render.yaml`](./render.yaml), which deploys the React
-frontend and FastAPI API from one Render Blueprint. The API starts its Celery
-worker in the same free web service so repository sync works without paying for
-a background-worker instance.
-
-The result uses free `*.onrender.com` URLs. A custom `.com`, `.in`, etc. domain
-is not free, but can be connected to Render later without changing the app.
-
-1. Create a free [Neon](https://neon.com) project and copy its **pooled**
-   Postgres connection string. Convert its scheme from `postgresql://` to
-   `postgresql+psycopg://` before using it as `DATABASE_URL`.
-2. Create a free [Upstash Redis](https://upstash.com/redis) database and copy
-   its TLS Redis URL (`rediss://...`) as `REDIS_URL`.
-3. Push this repository to GitHub, then in Render choose **New → Blueprint**
-   and select the repository. Render discovers `render.yaml` and creates both
-   services.
-4. In the Blueprint form, enter the Neon and Upstash URLs plus new GitHub OAuth
-   credentials. Let Render generate `JWT_SECRET_KEY`; leave `GEMINI_API_KEY`
-   empty if the AI feature is not needed.
-5. Once the API has deployed, copy its `https://...onrender.com` address. Set:
-   - `GITHUB_REDIRECT_URI` to
-     `https://YOUR-API.onrender.com/api/v1/auth/github/callback`
-   - `VITE_API_URL` to `https://YOUR-API.onrender.com/api/v1`
-6. Deploy the static site, copy its `https://...onrender.com` address, then set
-   the API's `FRONTEND_URL` to that address and redeploy the API.
-7. In the GitHub OAuth App settings, set the same callback URL from step 5.
-
-Never commit `.env` or any credential. Rotate any key that was previously
-stored in a tracked file or shared outside your machine.
-
-Frontend:
-
-```
-http://localhost:5173
-```
-
-Backend:
-
-```
-http://localhost:8000
-```
-
-Swagger API Documentation:
-
-```
-http://localhost:8000/docs
-```
-
----
-
-# Local Development
-
-## Backend
-
+#### Backend
 ```bash
 cd backend
-
-python -m venv .venv
-
+python3 -m venv .venv
 source .venv/bin/activate
-
 pip install -r requirements.txt
-
 alembic upgrade head
-
-uvicorn app.main:app --reload
-
-celery -A app.workers.celery_app worker --loglevel=INFO
-
-pytest
+uvicorn app.main:app --reload --port 8000
 ```
 
-## Frontend
+#### Celery Worker
+```bash
+cd backend
+source .venv/bin/activate
+celery -A app.workers.celery_app worker --loglevel=INFO
+```
 
+#### Frontend
 ```bash
 cd frontend
-
 npm install
-
 npm run dev
 ```
 
----
-
-# Project Structure
-
+### 3. Automated Tests
+```bash
+cd backend
+source .venv/bin/activate
+pytest -v
 ```
-backend/
-│
-├── app/
-│   ├── api/
-│   ├── core/
-│   ├── db/
-│   ├── models/
-│   ├── services/
-│   ├── workers/
-│   └── main.py
-│
-├── alembic/
-├── tests/
-└── requirements.txt
-
-frontend/
-│
-├── src/
-│   ├── api/
-│   ├── components/
-│   ├── pages/
-│   ├── store/
-│   └── App.tsx
-│
-└── package.json
-```
-
----
-
-# Security Considerations
-
-This project is intended for learning and portfolio purposes.
-
-For a production deployment, consider implementing:
-
-- HTTP-only secure cookies for JWT storage
-- Encryption of GitHub access tokens
-- Token revocation and blacklisting
-- HTTPS
-- Rate limiting
-- Secret management services
-- Monitoring and logging
-
----
-
-# Future Enhancements
-
-- GitHub GraphQL API integration
-- Organization analytics
-- Team collaboration metrics
-- Email reports
-- GitHub Webhook support
-- CI/CD analytics
-- Code quality insights
-- Multi-provider support (GitLab, Bitbucket)
-- Advanced AI recommendations
-
----
-
-# Why RepoHub?
-
-RepoHub was built to demonstrate modern full-stack software engineering practices beyond a traditional CRUD application. It combines secure authentication, asynchronous background processing, relational databases, analytics, interactive data visualization, AI integration, and scalable backend architecture into a single project.
-
-The project showcases practical experience with technologies and patterns commonly used in production systems while providing developers with valuable insights into their GitHub activity.
