@@ -61,7 +61,11 @@ class WebSocketManager:
         """Subscribe to Redis pub/sub channel to distribute messages across instances."""
         settings = get_settings()
         try:
-            self._redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+            kwargs = {"decode_responses": True}
+            if settings.redis_url.startswith("rediss://"):
+                kwargs["ssl_cert_reqs"] = None
+
+            self._redis_client = aioredis.from_url(settings.redis_url, **kwargs)
             pubsub = self._redis_client.pubsub()
             await pubsub.subscribe(REDIS_EVENT_CHANNEL)
             logger.info(f"Subscribed to Redis channel '{REDIS_EVENT_CHANNEL}'")
@@ -120,7 +124,11 @@ def publish_realtime_event(
     }
     try:
         import redis
-        client = redis.from_url(settings.redis_url)
+        kwargs = {}
+        if settings.redis_url.startswith("rediss://"):
+            kwargs["ssl_cert_reqs"] = None
+
+        client = redis.from_url(settings.redis_url, **kwargs)
         client.publish(REDIS_EVENT_CHANNEL, json.dumps(payload))
         client.close()
     except Exception as exc:

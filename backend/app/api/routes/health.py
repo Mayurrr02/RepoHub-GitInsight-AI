@@ -38,7 +38,11 @@ def comprehensive_health(response: Response):
     redis_start = time.time()
     try:
         import redis
-        client = redis.from_url(settings.redis_url, socket_timeout=2)
+        kwargs = {"socket_timeout": 2}
+        if settings.redis_url.startswith("rediss://"):
+            kwargs["ssl_cert_reqs"] = None
+
+        client = redis.from_url(settings.redis_url, **kwargs)
         client.ping()
         client.close()
         redis_latency = round((time.time() - redis_start) * 1000, 2)
@@ -58,7 +62,6 @@ def comprehensive_health(response: Response):
     # 3. Celery Status Check
     try:
         from app.workers.celery_app import celery_app
-        # Inspect ping active workers with short timeout
         inspector = celery_app.control.inspect(timeout=1.0)
         ping_res = inspector.ping() if inspector else None
         if ping_res:
