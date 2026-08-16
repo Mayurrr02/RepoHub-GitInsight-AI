@@ -67,7 +67,7 @@ function MarkdownRenderer({ content }: { content: string }) {
   let codeBlockCounter = 0;
 
   return (
-    <div className="space-y-3 text-slate-200 leading-relaxed text-sm">
+    <div className="space-y-3 text-slate-800 dark:text-slate-200 leading-relaxed text-sm">
       {blocks.map((block, bIdx) => {
         if (block.startsWith('```') && block.endsWith('```')) {
           const currentCodeIdx = codeBlockCounter++;
@@ -126,7 +126,7 @@ function MarkdownRenderer({ content }: { content: string }) {
 
           if (isBulletList) {
             return (
-              <ul key={`${bIdx}-${pIdx}`} className="my-2 space-y-1.5 list-disc list-outside pl-5 text-slate-200">
+              <ul key={`${bIdx}-${pIdx}`} className="my-2 space-y-1.5 list-disc list-outside pl-5 text-slate-800 dark:text-slate-200">
                 {lines.map((l, lIdx) => (
                   <li key={lIdx} className="pl-1">
                     {renderInlineFormatting(l.replace(/^\s*[-*•]\s+/, ''))}
@@ -138,7 +138,7 @@ function MarkdownRenderer({ content }: { content: string }) {
 
           if (isNumberList) {
             return (
-              <ol key={`${bIdx}-${pIdx}`} className="my-2 space-y-1.5 list-decimal list-outside pl-5 text-slate-200">
+              <ol key={`${bIdx}-${pIdx}`} className="my-2 space-y-1.5 list-decimal list-outside pl-5 text-slate-800 dark:text-slate-200">
                 {lines.map((l, lIdx) => (
                   <li key={lIdx} className="pl-1">
                     {renderInlineFormatting(l.replace(/^\s*\d+\.\s+/, ''))}
@@ -154,7 +154,7 @@ function MarkdownRenderer({ content }: { content: string }) {
               {lines.map((line, lIdx) => {
                 if (line.startsWith('### ')) {
                   return (
-                    <h3 key={lIdx} className="mt-3 mb-1 text-base font-semibold text-white flex items-center gap-2">
+                    <h3 key={lIdx} className="mt-3 mb-1 text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-blue-500 inline-block" />
                       {renderInlineFormatting(line.slice(4))}
                     </h3>
@@ -162,27 +162,27 @@ function MarkdownRenderer({ content }: { content: string }) {
                 }
                 if (line.startsWith('## ')) {
                   return (
-                    <h2 key={lIdx} className="mt-4 mb-1.5 text-lg font-bold text-slate-100 border-b border-slate-800/80 pb-1">
+                    <h2 key={lIdx} className="mt-4 mb-1.5 text-lg font-bold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-800/80 pb-1">
                       {renderInlineFormatting(line.slice(3))}
                     </h2>
                   );
                 }
                 if (line.startsWith('# ')) {
                   return (
-                    <h1 key={lIdx} className="mt-4 mb-2 text-xl font-bold text-white">
+                    <h1 key={lIdx} className="mt-4 mb-2 text-xl font-bold text-slate-900 dark:text-white">
                       {renderInlineFormatting(line.slice(2))}
                     </h1>
                   );
                 }
                 if (line.startsWith('> ')) {
                   return (
-                    <blockquote key={lIdx} className="my-2 border-l-4 border-blue-500/80 bg-blue-950/20 pl-3.5 py-1.5 italic text-slate-300 rounded-r-lg">
+                    <blockquote key={lIdx} className="my-2 border-l-4 border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 pl-3.5 py-1.5 italic text-slate-700 dark:text-slate-300 rounded-r-lg">
                       {renderInlineFormatting(line.slice(2))}
                     </blockquote>
                   );
                 }
                 return (
-                  <p key={lIdx} className="text-slate-200">
+                  <p key={lIdx} className="text-slate-800 dark:text-slate-200">
                     {renderInlineFormatting(line)}
                   </p>
                 );
@@ -197,27 +197,26 @@ function MarkdownRenderer({ content }: { content: string }) {
 
 // Inline formatting helper (bold, code pills, italics)
 function renderInlineFormatting(text: string) {
-  // Regex to split by inline code `code`, bold **text**, and italic *text*
   const tokens = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g);
 
   return tokens.map((token, i) => {
     if (token.startsWith('`') && token.endsWith('`') && token.length > 2) {
       return (
-        <code key={i} className="rounded bg-slate-800/90 border border-slate-700/60 px-1.5 py-0.5 font-mono text-[12px] text-blue-300">
+        <code key={i} className="rounded bg-slate-200 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700/60 px-1.5 py-0.5 font-mono text-[12px] text-blue-700 dark:text-blue-300">
           {token.slice(1, -1)}
         </code>
       );
     }
     if (token.startsWith('**') && token.endsWith('**') && token.length > 4) {
       return (
-        <strong key={i} className="font-semibold text-white">
+        <strong key={i} className="font-semibold text-slate-900 dark:text-white">
           {token.slice(2, -2)}
         </strong>
       );
     }
     if (token.startsWith('*') && token.endsWith('*') && token.length > 2) {
       return (
-        <em key={i} className="italic text-slate-300">
+        <em key={i} className="italic text-slate-700 dark:text-slate-300">
           {token.slice(1, -1)}
         </em>
       );
@@ -334,7 +333,7 @@ export function IntelligencePage() {
   return (
     <div className="space-y-6 pb-8">
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 shadow-md shadow-blue-500/20">
@@ -345,13 +344,13 @@ export function IntelligencePage() {
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                 Engineering Intelligence AI
-                <span className="rounded-md bg-blue-950 border border-blue-800 px-2 py-0.5 text-[11px] font-mono font-medium text-blue-400">
+                <span className="rounded-md bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-400 px-2 py-0.5 text-[11px] font-mono font-medium">
                   Gemini Flash 3.5
                 </span>
               </h1>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Context-aware career advice, skill mapping, tech-debt triage, and commit velocity insights.
               </p>
             </div>
@@ -361,10 +360,10 @@ export function IntelligencePage() {
         <div className="flex items-center gap-2.5">
           <button
             onClick={clearChat}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 px-3 py-2 text-xs font-medium text-slate-300 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 dark:text-slate-300 px-3 py-2 text-xs font-medium transition-colors"
             title="Reset conversation"
           >
-            <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="h-4 w-4 text-slate-500 dark:text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
             <span>Clear Chat</span>
@@ -398,8 +397,8 @@ export function IntelligencePage() {
       {/* Preset Prompt Cards */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Analysis Templates & Presets</span>
-          <span className="text-[11px] text-slate-500">Click any preset to run analysis</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Analysis Templates & Presets</span>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">Click any preset to run analysis</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {PRESET_PROMPTS.map((item, idx) => (
@@ -407,15 +406,15 @@ export function IntelligencePage() {
               key={idx}
               onClick={() => handleSend(item.prompt)}
               disabled={isLoading}
-              className="group flex flex-col text-left rounded-xl border border-slate-800/80 bg-slate-900/60 hover:bg-slate-800/80 hover:border-slate-700 p-3.5 transition-all shadow-sm active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+              className="group flex flex-col text-left rounded-xl border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 p-3.5 transition-all shadow-xs active:scale-[0.99] disabled:opacity-50 cursor-pointer transition-colors duration-200"
             >
               <div className="flex items-center gap-2">
                 <span className="text-lg">{item.icon}</span>
-                <span className="text-xs font-semibold text-slate-200 group-hover:text-blue-400 transition-colors">
+                <span className="text-xs font-semibold text-slate-900 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                   {item.title}
                 </span>
               </div>
-              <p className="mt-1.5 text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+              <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                 {item.description}
               </p>
             </button>
@@ -424,7 +423,7 @@ export function IntelligencePage() {
       </div>
 
       {/* Interactive Chat Window */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/90 shadow-2xl flex flex-col overflow-hidden">
+      <div className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/90 shadow-2xl flex flex-col overflow-hidden transition-colors duration-200">
         {/* Chat Stream Area */}
         <div className="p-4 sm:p-6 space-y-6 max-h-[600px] min-h-[350px] overflow-y-auto">
           {messages.map((msg) => (
@@ -440,17 +439,17 @@ export function IntelligencePage() {
 
               <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[78%]`}>
                 <div className="flex items-center gap-2 mb-1 px-1">
-                  <span className="text-[11px] font-medium text-slate-400">
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                     {msg.role === 'user' ? 'You' : 'RepoHub AI'}
                   </span>
-                  <span className="text-[10px] text-slate-500">{msg.timestamp}</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">{msg.timestamp}</span>
                 </div>
 
                 <div
-                  className={`rounded-2xl p-4 sm:p-5 shadow-md ${
+                  className={`rounded-2xl p-4 sm:p-5 shadow-xs ${
                     msg.role === 'user'
                       ? 'bg-blue-600 text-white rounded-tr-sm'
-                      : 'bg-slate-950/80 border border-slate-800/80 rounded-tl-sm text-slate-200'
+                      : 'bg-slate-100 border border-slate-200 rounded-tl-sm text-slate-800 dark:bg-slate-950/80 dark:border-slate-800/80 dark:text-slate-200'
                   }`}
                 >
                   {msg.role === 'user' ? (
@@ -461,17 +460,17 @@ export function IntelligencePage() {
                 </div>
 
                 {msg.role === 'assistant' && (
-                  <div className="mt-1.5 flex items-center gap-2 px-1 text-[11px] text-slate-400">
+                  <div className="mt-1.5 flex items-center gap-2 px-1 text-[11px] text-slate-400 dark:text-slate-400">
                     <button
                       onClick={() => copyMessageContent(msg.id, msg.content)}
-                      className="flex items-center gap-1 hover:text-slate-200 transition-colors"
+                      className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                     >
                       {copiedMessageId === msg.id ? (
                         <>
-                          <svg className="h-3.5 w-3.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+                          <svg className="h-3.5 w-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
-                          <span className="text-emerald-400">Copied</span>
+                          <span className="text-emerald-500 font-medium">Copied</span>
                         </>
                       ) : (
                         <>
@@ -488,7 +487,7 @@ export function IntelligencePage() {
               </div>
 
               {msg.role === 'user' && (
-                <div className="h-8 w-8 rounded-xl bg-slate-700 flex items-center justify-center shrink-0 text-white font-bold text-xs mt-1">
+                <div className="h-8 w-8 rounded-xl bg-slate-300 dark:bg-slate-700 flex items-center justify-center shrink-0 text-slate-800 dark:text-white font-bold text-xs mt-1">
                   ME
                 </div>
               )}
@@ -500,11 +499,11 @@ export function IntelligencePage() {
               <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shrink-0 text-white font-bold text-xs animate-pulse">
                 AI
               </div>
-              <div className="rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-950/80 p-4 shadow-md flex items-center gap-2 text-slate-400 text-xs">
+              <div className="rounded-2xl rounded-tl-sm border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-950/80 p-4 shadow-sm flex items-center gap-2 text-slate-600 dark:text-slate-400 text-xs">
                 <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
                 <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-                <span className="ml-2 font-mono text-[11px] text-slate-400">Analyzing GitHub analytics context...</span>
+                <span className="ml-2 font-mono text-[11px]">Analyzing GitHub analytics context...</span>
               </div>
             </div>
           )}
@@ -513,8 +512,8 @@ export function IntelligencePage() {
         </div>
 
         {/* Input Bar */}
-        <div className="border-t border-slate-800 bg-slate-950/70 p-4">
-          <div className="relative flex items-end gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2.5 focus-within:border-blue-500 transition-colors shadow-inner">
+        <div className="border-t border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/70 p-4 transition-colors duration-200">
+          <div className="relative flex items-end gap-2 rounded-xl border border-slate-300 bg-white dark:border-slate-800 dark:bg-slate-900 px-3.5 py-2.5 focus-within:border-blue-500 transition-colors shadow-inner">
             <textarea
               ref={textareaRef}
               value={input}
@@ -522,7 +521,7 @@ export function IntelligencePage() {
               onKeyDown={handleKeyDown}
               placeholder="Ask RepoHub AI anything about your code, productivity, skills, or repositories... (Enter to send, Shift+Enter for new line)"
               rows={2}
-              className="flex-1 resize-none bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none leading-relaxed"
+              className="flex-1 resize-none bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none leading-relaxed"
             />
             <button
               onClick={() => handleSend()}
@@ -545,4 +544,3 @@ export function IntelligencePage() {
     </div>
   );
 }
-

@@ -37,14 +37,13 @@ export function LiveNotificationBell({ isConnected, lastEvent }: { isConnected: 
     }
   }, [lastEvent]);
 
-
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative flex items-center justify-center rounded-lg p-2 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+        className="relative flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
         title={isConnected ? 'Live WebSocket Connected' : 'WebSocket Disconnected'}
       >
         {/* Bell SVG */}
@@ -54,8 +53,8 @@ export function LiveNotificationBell({ isConnected, lastEvent }: { isConnected: 
 
         {/* Real-time connection dot */}
         <span
-          className={`absolute bottom-1 right-1 h-2 w-2 rounded-full border border-slate-900 ${
-            isConnected ? 'bg-emerald-400' : 'bg-slate-500'
+          className={`absolute bottom-1 right-1 h-2 w-2 rounded-full border border-white dark:border-slate-900 ${
+            isConnected ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-500'
           }`}
           title={isConnected ? 'Real-time WebSocket Connected' : 'Disconnected'}
         />
@@ -70,13 +69,15 @@ export function LiveNotificationBell({ isConnected, lastEvent }: { isConnected: 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 z-50 w-80 rounded-xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in">
-            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3 bg-slate-950/50">
+          <div className="absolute right-0 mt-2 z-50 w-80 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in transition-colors duration-200">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 py-3 bg-slate-50 dark:bg-slate-950/50">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-slate-100">Live Notifications</span>
+                <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">Live Notifications</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                    isConnected ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-400'
+                  className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium ${
+                    isConnected
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800'
+                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                   }`}
                 >
                   {isConnected ? 'LIVE' : 'OFFLINE'}
@@ -85,21 +86,28 @@ export function LiveNotificationBell({ isConnected, lastEvent }: { isConnected: 
               {unreadCount > 0 && (
                 <button
                   onClick={() => setNotifications(ns => ns.map(n => ({ ...n, read: true })))}
-                  className="text-xs text-blue-400 hover:text-blue-300"
+                  className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                 >
                   Mark read
                 </button>
               )}
             </div>
 
-            <div className="max-h-72 divide-y divide-slate-800/50 overflow-y-auto">
+            <div className="max-h-72 divide-y divide-slate-100 dark:divide-slate-800/50 overflow-y-auto">
               {notifications.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-400">No notifications yet.</div>
+                <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">No notifications yet.</div>
               ) : (
                 notifications.map(item => (
-                  <div key={item.id} className={`p-3 transition-colors ${item.read ? 'bg-transparent' : 'bg-blue-950/20'}`}>
-                    <p className="text-xs text-slate-200">{item.message}</p>
-                    <span className="mt-1 block text-[10px] text-slate-500">{item.time}</span>
+                  <div
+                    key={item.id}
+                    className={`p-3 transition-colors ${
+                      item.read
+                        ? 'bg-transparent'
+                        : 'bg-blue-50/60 dark:bg-blue-950/20'
+                    }`}
+                  >
+                    <p className="text-xs text-slate-800 dark:text-slate-200">{item.message}</p>
+                    <span className="mt-1 block text-[10px] text-slate-400 dark:text-slate-500">{item.time}</span>
                   </div>
                 ))
               )}
@@ -110,3 +118,4 @@ export function LiveNotificationBell({ isConnected, lastEvent }: { isConnected: 
     </div>
   );
 }
+

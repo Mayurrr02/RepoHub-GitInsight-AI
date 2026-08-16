@@ -63,7 +63,7 @@ export function RealtimeSyncToast({ lastEvent }: { lastEvent: WSEvent | null }) 
   if (!syncState.visible) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 rounded-xl border border-slate-700/80 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-4">
+    <div className="fixed bottom-6 right-6 z-50 w-96 rounded-xl border border-slate-200 bg-white/95 text-slate-900 dark:border-slate-700/80 dark:bg-slate-900/95 dark:text-slate-100 p-4 shadow-2xl backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {syncState.status === 'running' && (
@@ -73,27 +73,27 @@ export function RealtimeSyncToast({ lastEvent }: { lastEvent: WSEvent | null }) 
             </span>
           )}
           {syncState.status === 'completed' && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-xs text-emerald-400 font-bold">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 text-xs font-bold">
               ✓
             </span>
           )}
           {syncState.status === 'failed' && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-500/20 text-xs text-rose-400 font-bold">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 text-xs font-bold">
               ✕
             </span>
           )}
-          <span className="text-sm font-semibold text-slate-200">
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-200">
             {syncState.status === 'running' && 'Live Synchronization'}
             {syncState.status === 'completed' && 'Synchronization Complete'}
             {syncState.status === 'failed' && 'Synchronization Failed'}
           </span>
         </div>
-        <span className="text-xs font-mono text-slate-400">{syncState.progress}%</span>
+        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{syncState.progress}%</span>
       </div>
 
-      <p className="mt-2 text-xs text-slate-300 line-clamp-2">{syncState.step}</p>
+      <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{syncState.step}</p>
 
-      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
         <div
           className={`h-full transition-all duration-500 ease-out rounded-full ${
             syncState.status === 'completed'
@@ -108,3 +108,4 @@ export function RealtimeSyncToast({ lastEvent }: { lastEvent: WSEvent | null }) 
     </div>
   );
 }
+
