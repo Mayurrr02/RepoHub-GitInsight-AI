@@ -25,6 +25,60 @@ class RepositoryOut(BaseModel):
     updated_at: datetime | None
 
 
+class CommitSummaryOut(BaseModel):
+    sha: str
+    message: str
+    author_login: str | None
+    committed_at: datetime | None
+
+
+class ContributorSummaryOut(BaseModel):
+    login: str
+    contributions: int
+
+
+class LanguageSummaryOut(BaseModel):
+    name: str
+    bytes: int
+    percent: float
+
+
+class MetricSummaryOut(BaseModel):
+    health_score: float
+    activity_score: float
+    maintenance_score: float
+    documentation_score: float
+    merge_rate: float
+    issue_resolution_rate: float
+
+
+class RepositoryDetailOut(BaseModel):
+    id: int
+    github_id: int
+    name: str
+    full_name: str
+    html_url: str
+    clone_url: str
+    description: str | None
+    is_private: bool
+    language: str | None
+    stars: int
+    updated_at: datetime | None
+    total_commits: int
+    open_prs: int
+    merged_prs: int
+    closed_prs: int
+    total_prs: int
+    open_issues: int
+    closed_issues: int
+    total_issues: int
+    metrics: MetricSummaryOut
+    languages: list[LanguageSummaryOut]
+    top_contributors: list[ContributorSummaryOut]
+    recent_commits: list[CommitSummaryOut]
+
+
+
 class TokenPair(BaseModel):
     access_token: str
     refresh_token: str
