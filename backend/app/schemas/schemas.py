@@ -264,3 +264,59 @@ class WSMessage(BaseModel):
     event: str
     data: dict[str, Any]
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# --- User Profile & API Key Schemas ---
+
+class GitHubAccountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    connected: bool
+    github_id: int | None = None
+    scope: str | None = None
+    scopes_list: list[str] = []
+
+
+class UserStatsOut(BaseModel):
+    total_repositories: int
+    public_repositories: int
+    private_repositories: int
+    total_commits: int
+    total_organizations: int
+    coding_streak: int = 0
+    review_score: float = 0
+
+
+class UserProfileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    login: str
+    name: str | None
+    avatar_url: str | None
+    created_at: datetime | None = None
+    stats: UserStatsOut
+    github_account: GitHubAccountOut
+
+
+class ApiKeyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    prefix: str
+    created_at: datetime
+    expires_at: datetime | None = None
+    last_used_at: datetime | None = None
+
+
+class ApiKeyCreateIn(BaseModel):
+    name: str
+    expires_in_days: int | None = None
+
+
+class ApiKeyCreatedOut(BaseModel):
+    id: int
+    name: str
+    prefix: str
+    raw_key: str
+    created_at: datetime
+    expires_at: datetime | None = None
+

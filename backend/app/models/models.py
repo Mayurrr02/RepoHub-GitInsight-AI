@@ -24,6 +24,7 @@ class User(Base):
     repositories: Mapped[list["Repository"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     organization_memberships: Mapped[list["OrganizationMember"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     owned_organizations: Mapped[list["Organization"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
+    api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class GitHubAccount(Base):
@@ -242,4 +243,19 @@ class AuditLog(Base):
 
     user: Mapped[User | None] = relationship()
     organization: Mapped[Organization | None] = relationship(back_populates="audit_logs")
+
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    key_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    prefix: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(back_populates="api_keys")
+
 
