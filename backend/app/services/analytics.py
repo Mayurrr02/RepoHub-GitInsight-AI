@@ -9,6 +9,14 @@ def _score(value: float) -> float:
     return round(max(0, min(100, value)), 1)
 
 
+def _to_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def calculate_repository_metrics(db: Session, repository: Repository) -> RepositoryMetric:
     commits = db.scalars(select(Commit).where(Commit.repository_id == repository.id)).all()
     prs = db.scalars(select(PullRequest).where(PullRequest.repository_id == repository.id)).all()
@@ -18,16 +26,20 @@ def calculate_repository_metrics(db: Session, repository: Repository) -> Reposit
     merge_rate = 100 * sum(pr.merged_at is not None for pr in prs) / len(prs) if prs else 0
     issue_rate = 100 * sum(issue.closed_at is not None for issue in issues) / len(issues) if issues else 0
     now = datetime.now(timezone.utc)
-    active_30d = sum(c.committed_at >= now - timedelta(days=30) for c in valid_commits)
+    active_30d = sum(_to_utc(c.committed_at) >= now - timedelta(days=30) for c in valid_commits)
     activity = _score(active_30d * 4 + days_active * 1.5)
     documentation = 100 if repository.description else 35
     maintenance = _score(issue_rate * .45 + merge_rate * .35 + min(active_30d * 2, 20))
     health = _score(activity * .35 + documentation * .2 + maintenance * .25 + merge_rate * .1 + issue_rate * .1)
-    metric = db.scalar(select(RepositoryMetric).where(RepositoryMetric.repository_id == repository.id)) or RepositoryMetric(repository_id=repository.id)
+    metric = db.scalar(select(RepositoryMetric).where(RepositoryMetric.repository_id == repository.id))
+    if not metric:
+        metric = RepositoryMetric(repository_id=repository.id)
+        db.add(metric)
+        db.flush()
+
     metric.merge_rate, metric.issue_resolution_rate, metric.activity_score = round(merge_rate, 1), round(issue_rate, 1), activity
     metric.documentation_score, metric.maintenance_score, metric.health_score = documentation, maintenance, health
     metric.calculated_at = now
-    db.add(metric)
     return metric
 
 
@@ -72,7 +84,13 @@ def calculate_developer_metrics(db: Session, user_id: int) -> DeveloperMetric:
         if valid_commits
         else 0
     )
-    metric = db.scalar(select(DeveloperMetric).where(DeveloperMetric.user_id == user_id)) or DeveloperMetric(user_id=user_id)
+
+    metric = db.scalar(select(DeveloperMetric).where(DeveloperMetric.user_id == user_id))
+    if not metric:
+        metric = DeveloperMetric(user_id=user_id)
+        db.add(metric)
+        db.flush()
+
     metric.commit_frequency = round(len(valid_commits) / max(1, len(dates)), 2) if dates else 0
     metric.average_commits_per_day = round(len(valid_commits) / span, 2) if valid_commits else 0
     metric.coding_streak = streak
@@ -80,7 +98,6 @@ def calculate_developer_metrics(db: Session, user_id: int) -> DeveloperMetric:
     metric.coding_hours = round(len(valid_commits) * 0.75, 1)
     metric.review_score = _score(len(reviews) * 8)
     metric.calculated_at = datetime.now(timezone.utc)
-    db.add(metric)
     return metric
 
 

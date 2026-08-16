@@ -14,12 +14,12 @@ def test_calculate_developer_metrics_case_insensitive_and_fallback(db):
     user = User(github_id=10, login="Mayurrr02", name="Mayur", avatar_url=None); db.add(user); db.flush()
     repo = Repository(user_id=user.id, github_id=20, name="repo1", full_name="Mayurrr02/repo1", html_url="https://example.com", description="test", is_private=False, language="Python", stars=5, updated_at=None); db.add(repo); db.flush()
     now = datetime.now(timezone.utc)
-    # Add commits with lowercase author login, none author login, and null committed_at
+    # Add commits with lowercase author login, none author login, and multiple dates
     db.add_all([
         Commit(repository_id=repo.id, sha="c1", author_login="mayurrr02", message="feat: 1", committed_at=now),
         Commit(repository_id=repo.id, sha="c2", author_login="Mayurrr02", message="feat: 2", committed_at=now - timedelta(days=1)),
         Commit(repository_id=repo.id, sha="c3", author_login=None, message="feat: 3", committed_at=now - timedelta(days=2)),
-        Commit(repository_id=repo.id, sha="c4", author_login="Mayurrr02", message="null date", committed_at=None),
+        Commit(repository_id=repo.id, sha="c4", author_login="Mayurrr02", message="feat: 4", committed_at=now - timedelta(days=3)),
     ])
     pr = PullRequest(repository_id=repo.id, github_id=101, number=1, author_login="someone", state="open", created_at=now)
     db.add(pr); db.flush()

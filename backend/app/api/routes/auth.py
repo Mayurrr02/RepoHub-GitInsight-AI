@@ -1,5 +1,5 @@
 from urllib.parse import urlencode
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from app.api.deps import current_user
@@ -13,31 +13,58 @@ from app.services.github import exchange_code, fetch_user
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/github/login", summary="Start GitHub OAuth login")
-def github_login():
+def github_login(request: Request):
     s = get_settings()
     if not s.github_client_id:
-        raise HTTPException(503, "GitHub OAuth is not configured")
-    query = urlencode({"client_id": s.github_client_id, "redirect_uri": s.github_redirect_uri, "scope": "read:user repo"})
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="GitHub OAuth is not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in the environment variables."
+        )
+
+    # Determine redirect_uri dynamically if using default localhost but running on cloud
+    redirect_uri = s.github_redirect_uri
+    if not redirect_uri or redirect_uri == "http://localhost:8000/api/v1/auth/github/callback":
+        base_url = str(request.base_url).rstrip("/")
+        if "onrender.com" in base_url or ("localhost" not in base_url and "127.0.0.1" not in base_url):
+            redirect_uri = f"{base_url}/api/v1/auth/github/callback"
+
+    query = urlencode({"client_id": s.github_client_id, "redirect_uri": redirect_uri, "scope": "read:user repo"})
     return {"authorization_url": f"https://github.com/login/oauth/authorize?{query}"}
 
 @router.get("/github/callback", include_in_schema=False)
-async def github_callback(code: str, db: Session = Depends(get_db)):
+async def github_callback(code: str, request: Request, db: Session = Depends(get_db)):
     token_data = await exchange_code(code)
     access_token = token_data.get("access_token")
     if not access_token:
-        raise HTTPException(401, "GitHub did not return an access token")
+        error_desc = token_data.get("error_description") or token_data.get("error") or "GitHub did not return an access token"
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, error_desc)
+
     profile = await fetch_user(access_token)
     user = db.query(User).filter(User.github_id == profile["id"]).first()
     if not user:
-        user = User(github_id=profile["id"], login=profile["login"], name=profile.get("name"), avatar_url=profile.get("avatar_url")); db.add(user); db.flush()
+        user = User(github_id=profile["id"], login=profile["login"], name=profile.get("name"), avatar_url=profile.get("avatar_url"))
+        db.add(user)
+        db.flush()
     else:
         user.login, user.name, user.avatar_url = profile["login"], profile.get("name"), profile.get("avatar_url")
+
     account = user.github_account
-    if account: account.access_token, account.scope = access_token, token_data.get("scope")
-    else: db.add(GitHubAccount(user_id=user.id, access_token=access_token, scope=token_data.get("scope")))
+    if account:
+        account.access_token, account.scope = access_token, token_data.get("scope")
+    else:
+        db.add(GitHubAccount(user_id=user.id, access_token=access_token, scope=token_data.get("scope")))
     db.commit()
+
     params = urlencode({"access_token": create_access_token(user.id), "refresh_token": create_refresh_token(user.id)})
-    return RedirectResponse(f"{get_settings().frontend_url}/auth/callback?{params}")
+
+    frontend_url = get_settings().frontend_url
+    if not frontend_url or frontend_url == "http://localhost:5173":
+        base_url = str(request.base_url).rstrip("/")
+        if "onrender.com" in base_url:
+            frontend_url = base_url.replace("-api", "-web")
+
+    return RedirectResponse(f"{frontend_url}/auth/callback?{params}")
+
 
 @router.post("/refresh", response_model=TokenPair)
 def refresh(body: RefreshRequest):

@@ -104,7 +104,21 @@ def get_repository_detail(id: int, user: User = Depends(current_user), db: Sessi
 def queue_sync(user: User = Depends(current_user), db: Session = Depends(get_db)):
     if not user.github_account:
         raise HTTPException(409, "No linked GitHub account")
-    job = SyncJob(user_id=user.id, status="queued"); db.add(job); db.commit(); db.refresh(job)
-    sync_repositories.delay(job.id)
+    job = SyncJob(user_id=user.id, status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    try:
+        sync_repositories.delay(job.id)
+    except Exception as exc:
+        import threading
+        import logging
+        logging.getLogger("repohub.repositories").warning(
+            f"Celery task dispatch failed ({exc}). Running sync asynchronously via background worker thread."
+        )
+        thread = threading.Thread(target=sync_repositories, args=(job.id,), daemon=True)
+        thread.start()
+
     return SyncQueued(job_id=job.id, status=job.status)
 

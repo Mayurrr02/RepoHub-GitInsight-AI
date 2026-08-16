@@ -10,25 +10,33 @@ export type WSEvent = {
 function getWebSocketUrl(token: string): string {
   const envApi = import.meta.env.VITE_API_URL;
 
-  // 1. If explicit absolute URL is configured (e.g. http://localhost:8000/api/v1 or https://api.repohub.com/api/v1)
+  // 1. If explicit absolute API URL is configured (e.g. https://repohub-api.onrender.com or https://repohub-api.onrender.com/api/v1)
   if (envApi && (envApi.startsWith('http://') || envApi.startsWith('https://'))) {
     const wsBase = envApi.replace(/^http/, 'ws').replace(/\/+$/, '');
-    return `${wsBase}/ws?token=${encodeURIComponent(token)}`;
+    if (wsBase.endsWith('/api/v1')) {
+      return `${wsBase}/ws?token=${encodeURIComponent(token)}`;
+    }
+    return `${wsBase}/api/v1/ws?token=${encodeURIComponent(token)}`;
   }
 
-  // 2. Browser environment
+  // 2. Browser window fallback
   if (typeof window !== 'undefined') {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    
+    const hostname = window.location.hostname;
+
     // In local dev with Vite on port 5173 without proxy, default directly to backend port 8000
-    if (window.location.port === '5173') {
-      return `${protocol}//${window.location.hostname}:8000/api/v1/ws?token=${encodeURIComponent(token)}`;
+    if (window.location.port === '5173' || hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `${protocol}//${hostname}:8000/api/v1/ws?token=${encodeURIComponent(token)}`;
+    }
+
+    // Auto-detect Render deployment
+    if (hostname.endsWith('.onrender.com')) {
+      const apiHost = hostname.replace(/-web(?=\.onrender\.com$)/, '-api');
+      return `wss://${apiHost}/api/v1/ws?token=${encodeURIComponent(token)}`;
     }
 
     const host = window.location.host;
-    const path = envApi ? envApi.replace(/\/+$/, '') : '/api/v1';
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
-    return `${protocol}//${host}${cleanPath}/ws?token=${encodeURIComponent(token)}`;
+    return `${protocol}//${host}/api/v1/ws?token=${encodeURIComponent(token)}`;
   }
 
   return `ws://localhost:8000/api/v1/ws?token=${encodeURIComponent(token)}`;
@@ -41,6 +49,7 @@ export function useWebSocket() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const retryCountRef = useRef<number>(0);
   const isPageHiddenRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -66,11 +75,12 @@ export function useWebSocket() {
 
         ws.onopen = () => {
           setIsConnected(true);
+          retryCountRef.current = 0;
           const pingInterval = window.setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send('ping');
             }
-          }, 25000);
+          }, 20000);
           (ws as any)._pingInterval = pingInterval;
         };
 
@@ -89,11 +99,12 @@ export function useWebSocket() {
           if ((ws as any)._pingInterval) {
             clearInterval((ws as any)._pingInterval);
           }
-          // Do not schedule reconnect if page is hidden/bfcache
           if (!isPageHiddenRef.current && useAuth.getState().accessToken) {
+            retryCountRef.current += 1;
+            const delay = Math.min(15000, 1000 * Math.pow(1.5, Math.min(retryCountRef.current, 8)));
             reconnectTimeoutRef.current = window.setTimeout(() => {
               connect();
-            }, 3000);
+            }, delay);
           }
         };
 

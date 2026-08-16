@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -5,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.api.router import api_router
-from app.api.routes import health, metrics
+from app.api.routes import health, metrics, ws
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.middleware import (
@@ -23,6 +24,7 @@ logger = logging.getLogger("repohub.main")
 async def lifespan(app: FastAPI):
     # Startup: Start WebSocket Redis pub/sub dispatcher
     logger.info("Initializing RepoHub enterprise platform...")
+    ws_manager.loop = asyncio.get_running_loop()
     ws_manager.start_background_task()
     yield
     # Shutdown: Clean up background connections
@@ -108,6 +110,7 @@ async def unhandled_exception(request: Request, exc: Exception):
 # Root Observability & Health endpoints
 app.include_router(health.router)
 app.include_router(metrics.router)
+app.include_router(ws.router)
 
 # Versioned API Routes (/api/v1)
 app.include_router(api_router)

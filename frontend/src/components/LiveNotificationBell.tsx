@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WSEvent } from '../lib/useWebSocket';
 
 type NotificationItem = {
@@ -19,18 +19,24 @@ export function LiveNotificationBell({ isConnected, lastEvent }: { isConnected: 
     },
   ]);
 
-  // Append new incoming notifications
-  if (lastEvent && lastEvent.event === 'sync_completed') {
-    const existing = notifications.find(n => n.id === `sync-${lastEvent.data?.job_id}`);
-    if (!existing) {
-      notifications.unshift({
-        id: `sync-${lastEvent.data?.job_id || Date.now()}`,
-        message: lastEvent.data?.message || 'Repository sync completed successfully.',
-        time: 'Just now',
-        read: false,
+  useEffect(() => {
+    if (lastEvent && lastEvent.event === 'sync_completed') {
+      const jobId = lastEvent.data?.job_id || Date.now();
+      setNotifications(prev => {
+        if (prev.some(n => n.id === `sync-${jobId}`)) return prev;
+        return [
+          {
+            id: `sync-${jobId}`,
+            message: lastEvent.data?.message || 'Repository sync completed successfully.',
+            time: 'Just now',
+            read: false,
+          },
+          ...prev,
+        ];
       });
     }
-  }
+  }, [lastEvent]);
+
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

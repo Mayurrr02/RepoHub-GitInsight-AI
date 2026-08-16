@@ -1,3 +1,4 @@
+import ssl
 from celery import Celery
 from app.core.config import get_settings
 
@@ -8,6 +9,7 @@ celery_app.conf.task_track_started = True
 celery_app.conf.imports = ("app.workers.tasks",)
 
 if settings.redis_url.startswith("rediss://"):
-    broker_ssl = {"ssl_cert_reqs": None}
+    broker_ssl = {"ssl_cert_reqs": ssl.CERT_NONE}
     celery_app.conf.broker_use_ssl = broker_ssl
     celery_app.conf.redis_backend_use_ssl = broker_ssl
+

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import ssl
 from collections import defaultdict
 from typing import Any
 from fastapi import WebSocket
@@ -21,6 +22,7 @@ class WebSocketManager:
         self.org_subscriptions: dict[int, set[int]] = defaultdict(set)
         self._redis_client: Redis | None = None
         self._pubsub_task: asyncio.Task | None = None
+        self.loop: asyncio.AbstractEventLoop | None = None
 
     async def connect(self, websocket: WebSocket, user_id: int):
         await websocket.accept()
@@ -58,38 +60,41 @@ class WebSocketManager:
                 await self.send_to_user(uid, message)
 
     async def start_redis_listener(self):
-        """Subscribe to Redis pub/sub channel to distribute messages across instances."""
+        """Subscribe to Redis pub/sub channel to distribute messages across instances with auto-reconnect."""
         settings = get_settings()
-        try:
-            kwargs = {"decode_responses": True}
-            if settings.redis_url.startswith("rediss://"):
-                kwargs["ssl_cert_reqs"] = None
+        while True:
+            try:
+                kwargs: dict[str, Any] = {"decode_responses": True, "socket_timeout": 30}
+                if settings.redis_url.startswith("rediss://"):
+                    kwargs["ssl_cert_reqs"] = ssl.CERT_NONE
 
-            self._redis_client = aioredis.from_url(settings.redis_url, **kwargs)
-            pubsub = self._redis_client.pubsub()
-            await pubsub.subscribe(REDIS_EVENT_CHANNEL)
-            logger.info(f"Subscribed to Redis channel '{REDIS_EVENT_CHANNEL}'")
+                self._redis_client = aioredis.from_url(settings.redis_url, **kwargs)
+                pubsub = self._redis_client.pubsub()
+                await pubsub.subscribe(REDIS_EVENT_CHANNEL)
+                logger.info(f"Subscribed to Redis channel '{REDIS_EVENT_CHANNEL}'")
 
-            async for msg in pubsub.listen():
-                if msg["type"] == "message":
-                    try:
-                        payload = json.loads(msg["data"])
-                        target_user_id = payload.get("user_id")
-                        target_org_id = payload.get("org_id")
+                async for msg in pubsub.listen():
+                    if msg["type"] == "message":
+                        try:
+                            payload = json.loads(msg["data"])
+                            target_user_id = payload.get("user_id")
+                            target_org_id = payload.get("org_id")
 
-                        if target_user_id:
-                            await self.send_to_user(int(target_user_id), payload)
-                        elif target_org_id:
-                            await self.broadcast_to_org(int(target_org_id), payload)
-                        else:
-                            for uid in list(self.active_connections.keys()):
-                                await self.send_to_user(uid, payload)
-                    except Exception as exc:
-                        logger.error(f"Error processing Redis pub/sub message: {exc}")
-        except asyncio.CancelledError:
-            logger.info("Redis listener task cancelled.")
-        except Exception as exc:
-            logger.warning(f"Could not connect to Redis pub/sub: {exc}. Real-time will operate in-memory.")
+                            if target_user_id:
+                                await self.send_to_user(int(target_user_id), payload)
+                            elif target_org_id:
+                                await self.broadcast_to_org(int(target_org_id), payload)
+                            else:
+                                for uid in list(self.active_connections.keys()):
+                                    await self.send_to_user(uid, payload)
+                        except Exception as exc:
+                            logger.error(f"Error processing Redis pub/sub message: {exc}")
+            except asyncio.CancelledError:
+                logger.info("Redis listener task cancelled.")
+                break
+            except Exception as exc:
+                logger.warning(f"Redis pub/sub connection interrupted: {exc}. Retrying in 5s...")
+                await asyncio.sleep(5)
 
     def start_background_task(self):
         if not self._pubsub_task or self._pubsub_task.done():
@@ -112,8 +117,8 @@ def publish_realtime_event(
     org_id: int | None = None
 ) -> None:
     """
-    Publish event to Redis pub/sub channel for WebSocket delivery.
-    Synchronous helper usable from Celery workers and synchronous endpoints.
+    Publish event to in-memory WebSockets and Redis pub/sub channel for reliable delivery.
+    Synchronous helper usable from Celery workers, background threads, and API endpoints.
     """
     settings = get_settings()
     payload = {
@@ -122,14 +127,37 @@ def publish_realtime_event(
         "user_id": user_id,
         "org_id": org_id,
     }
+
+    # 1. Direct in-memory threadsafe dispatch if main FastAPI event loop is running
+    target_loop = ws_manager.loop
+    if not target_loop:
+        try:
+            target_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+
+    if target_loop and target_loop.is_running():
+        try:
+            if user_id:
+                asyncio.run_coroutine_threadsafe(ws_manager.send_to_user(user_id, payload), target_loop)
+            elif org_id:
+                asyncio.run_coroutine_threadsafe(ws_manager.broadcast_to_org(org_id, payload), target_loop)
+            else:
+                for uid in list(ws_manager.active_connections.keys()):
+                    asyncio.run_coroutine_threadsafe(ws_manager.send_to_user(uid, payload), target_loop)
+        except Exception as e:
+            logger.debug(f"Direct threadsafe WS delivery: {e}")
+
+    # 2. Multi-instance distributed delivery via Redis Pub/Sub
     try:
         import redis
-        kwargs = {}
+        kwargs: dict[str, Any] = {"socket_timeout": 3, "socket_connect_timeout": 3}
         if settings.redis_url.startswith("rediss://"):
-            kwargs["ssl_cert_reqs"] = None
+            kwargs["ssl_cert_reqs"] = ssl.CERT_NONE
 
         client = redis.from_url(settings.redis_url, **kwargs)
         client.publish(REDIS_EVENT_CHANNEL, json.dumps(payload))
         client.close()
     except Exception as exc:
-        logger.warning(f"Failed to publish real-time event to Redis: {exc}")
+        logger.debug(f"Redis publish omitted or failed: {exc}")
+
