@@ -9,13 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models import DeveloperMetric, Repository, RepositoryMetric, User
-from app.services.analytics import language_distribution
+from app.services.analytics import calculate_developer_metrics, language_distribution
 
 logger = logging.getLogger("repohub.ai")
 
 
 def analytics_context(db: Session, user: User) -> str:
-    developer = db.scalar(select(DeveloperMetric).where(DeveloperMetric.user_id == user.id))
+    developer = calculate_developer_metrics(db, user.id)
     metrics = db.execute(
         select(Repository.full_name, RepositoryMetric.health_score, RepositoryMetric.activity_score)
         .join(RepositoryMetric)
@@ -57,12 +57,15 @@ def create_pdf(title: str, insights: str, db: Session, user: User) -> bytes:
     buffer = BytesIO()
     styles = getSampleStyleSheet()
     document = SimpleDocTemplate(buffer, pagesize=letter, title=title, leftMargin=42, rightMargin=42, topMargin=42)
-    developer = db.scalar(select(DeveloperMetric).where(DeveloperMetric.user_id == user.id))
+    developer = calculate_developer_metrics(db, user.id)
     rows = [
         ["Metric", "Value"],
-        ["Coding streak", str(developer.coding_streak if developer else 0)],
-        ["Average commits/day", str(developer.average_commits_per_day if developer else 0)],
-        ["Review score", str(developer.review_score if developer else 0)],
+        ["Coding streak", f"{developer.coding_streak} days"],
+        ["Average commits/day", str(developer.average_commits_per_day)],
+        ["Coding hours (estimated)", str(developer.coding_hours)],
+        ["Commit frequency", f"{developer.commit_frequency} / active day"],
+        ["Review score", f"{developer.review_score} / 100"],
+        ["Weekend activity", f"{developer.weekend_activity}%"],
     ]
     table = Table(rows, colWidths=[250, 250])
     table.setStyle(TableStyle([
