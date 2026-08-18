@@ -85,3 +85,5 @@ def create_pdf(title: str, insights: str, db: Session, user: User) -> bytes:
     story.extend(Paragraph(part, styles["BodyText"]) for part in insights.split("\n") if part.strip())
     document.build(story)
     return buffer.getvalue()
+
+
