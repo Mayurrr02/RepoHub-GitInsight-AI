@@ -14,11 +14,13 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
+export C_FORCE_ROOT=1
+
 echo "==> Running database migrations with Alembic..."
 alembic upgrade head
 
-echo "==> Starting Celery worker in the background..."
-celery -A app.workers.celery_app worker --loglevel=INFO &
+echo "==> Starting Celery worker in the background (concurrency=${CELERY_CONCURRENCY:-2})..."
+celery -A app.workers.celery_app worker --loglevel=INFO --concurrency="${CELERY_CONCURRENCY:-2}" &
 worker_pid=$!
 
 echo "==> Starting FastAPI Uvicorn server on port ${PORT:-8000}..."
