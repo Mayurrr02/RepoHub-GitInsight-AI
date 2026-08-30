@@ -1,25 +1,29 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDeveloper, getHistory, getRepoMetrics } from '../api/analytics';
-import { syncRepositories } from '../api/repositories';
-
-function Metric({ label, value, suffix = '' }: { label: string; value: number | undefined; suffix?: string }) {
-  const displayValue = typeof value === 'number' ? value : 0;
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800/90 dark:bg-slate-900/80 p-5 shadow-xs backdrop-blur transition hover:border-slate-300 dark:hover:border-slate-700 transition-colors duration-200">
-      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-        {displayValue}
-        <span className="text-lg font-normal text-slate-400 dark:text-slate-400">{suffix}</span>
-      </p>
-    </div>
-  );
-}
+import { getRepositories, syncRepositories } from '../api/repositories';
+import { AreaCommitChart } from '../components/charts/AreaCommitChart';
+import { SyncIcon } from '../components/icons/Icons';
 
 export function AnalyticsPage() {
   const queryClient = useQueryClient();
-  const developer = useQuery({ queryKey: ['developer'], queryFn: getDeveloper });
-  const history = useQuery({ queryKey: ['history'], queryFn: getHistory });
-  const repositories = useQuery({ queryKey: ['repo-metrics'], queryFn: getRepoMetrics });
+  const location = useLocation();
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'commits' | 'prs' | 'issues' | 'contributors'>('overview');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['overview', 'commits', 'prs', 'issues', 'contributors'].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    }
+  }, [location.search]);
+
+  const devQuery = useQuery({ queryKey: ['developer'], queryFn: getDeveloper });
+  const historyQuery = useQuery({ queryKey: ['history'], queryFn: () => getHistory() });
+  const repoMetricsQuery = useQuery({ queryKey: ['repo-metrics'], queryFn: getRepoMetrics });
+  const reposQuery = useQuery({ queryKey: ['repositories'], queryFn: getRepositories });
 
   const sync = useMutation({
     mutationFn: syncRepositories,
@@ -29,125 +33,217 @@ export function AnalyticsPage() {
         queryClient.invalidateQueries({ queryKey: ['history'] });
         queryClient.invalidateQueries({ queryKey: ['repo-metrics'] });
         queryClient.invalidateQueries({ queryKey: ['repositories'] });
-      }, 1500);
+      }, 1200);
     },
   });
 
-  if (developer.isLoading || history.isLoading || repositories.isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <p className="text-slate-500 dark:text-slate-400 animate-pulse font-medium">Loading engineering analytics…</p>
-      </div>
-    );
-  }
+  const historyCommits = historyQuery.data?.commits || [];
+  const reposList = reposQuery.data || [];
+  const metricsList = repoMetricsQuery.data || [];
+  const devData = devQuery.data;
 
-  if (developer.isError || history.isError || repositories.isError || !developer.data || !history.data || !repositories.data) {
-    return (
-      <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-400 p-8 text-center">
-        <p className="font-medium">Analytics could not be loaded.</p>
-        <button
-          onClick={() => sync.mutate()}
-          disabled={sync.isPending}
-          className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition"
-        >
-          {sync.isPending ? 'Syncing…' : 'Sync GitHub and retry'}
-        </button>
-      </div>
-    );
-  }
+  const totalCommitsCount = React.useMemo(() => {
+    return historyCommits.reduce((acc, curr) => acc + curr.commits, 0);
+  }, [historyCommits]);
 
-  const max = Math.max(...history.data.commits.map(x => x.commits), 1);
+  const avgMergeRate = React.useMemo(() => {
+    if (metricsList.length > 0) {
+      const sum = metricsList.reduce((acc, m) => acc + (m.merge_rate || 0), 0);
+      return Math.round((sum / metricsList.length) * 10) / 10;
+    }
+    return 0;
+  }, [metricsList]);
+
+  const avgIssueRate = React.useMemo(() => {
+    if (metricsList.length > 0) {
+      const sum = metricsList.reduce((acc, m) => acc + (m.issue_resolution_rate || 0), 0);
+      return Math.round((sum / metricsList.length) * 10) / 10;
+    }
+    return 0;
+  }, [metricsList]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6 pb-12">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Engineering analytics</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Metrics calculated from your synced GitHub activity.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+            Engineering Analytics
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Real-time GitHub commit telemetry, author velocity, and review participation
+          </p>
         </div>
+
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ['developer'] });
-              queryClient.invalidateQueries({ queryKey: ['history'] });
-              queryClient.invalidateQueries({ queryKey: ['repo-metrics'] });
-            }}
-            className="rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white px-3.5 py-2 text-sm font-medium transition"
-          >
-            Refresh Data
-          </button>
           <button
             disabled={sync.isPending}
             onClick={() => sync.mutate()}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition shadow-md shadow-blue-600/20"
+            className="flex items-center gap-2 rounded-xl bg-brand-purple hover:bg-purple-600 disabled:opacity-50 text-white px-4 py-2 text-xs font-semibold shadow-glow-purple transition cursor-pointer"
           >
-            {sync.isPending ? 'Syncing…' : 'Sync GitHub'}
+            <SyncIcon className={`h-3.5 w-3.5 ${sync.isPending ? 'animate-spin' : ''}`} />
+            <span>{sync.isPending ? 'Syncing...' : 'Refresh Telemetry'}</span>
           </button>
         </div>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Metric label="Coding streak" value={developer.data.coding_streak} suffix=" days" />
-        <Metric label="Average commits/day" value={developer.data.average_commits_per_day} />
-        <Metric label="Coding hours (estimated)" value={developer.data.coding_hours} />
-        <Metric label="Commit frequency" value={developer.data.commit_frequency} suffix=" / active day" />
-        <Metric label="Review score" value={developer.data.review_score} suffix=" / 100" />
-        <Metric label="Weekend activity" value={developer.data.weekend_activity} suffix="%" />
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white dark:border-slate-800/90 dark:bg-slate-900/80 p-6 shadow-xs backdrop-blur transition-colors duration-200">
-        <h2 className="font-semibold text-slate-900 dark:text-slate-200">Commits over time</h2>
-        <div className="mt-6 flex h-40 items-end gap-1">
-          {history.data.commits.map(point => (
-            <div
-              key={point.date}
-              title={`${point.date}: ${point.commits} commits`}
-              className="min-w-1 flex-1 rounded-t bg-blue-500 transition-all hover:bg-blue-400"
-              style={{ height: `${Math.max(4, (point.commits / max) * 100)}%` }}
-            />
+      {/* Main Analytics Container */}
+      <div className="rounded-2xl border border-slate-200 bg-white dark:border-white/[0.08] dark:bg-[#0D111A] p-6 shadow-card-light dark:shadow-card-dark space-y-6 transition-colors">
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-6 border-b border-slate-200 dark:border-white/[0.06] pb-3 overflow-x-auto select-none">
+          {[
+            { key: 'overview', label: 'Overview' },
+            { key: 'commits', label: 'Commits Over Time' },
+            { key: 'prs', label: 'Pull Requests' },
+            { key: 'issues', label: 'Issues & Bugs' },
+            { key: 'contributors', label: 'Contributors' },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as any)}
+              className={`text-xs font-semibold transition relative pb-2 whitespace-nowrap cursor-pointer ${
+                activeTab === tab.key
+                  ? 'text-brand-purple dark:text-white font-bold'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.key && (
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-brand-purple rounded-full shadow-glow-purple" />
+              )}
+            </button>
           ))}
         </div>
-        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Last 90 days · hover a bar for daily commits</p>
-      </section>
 
-      <section className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800/90 dark:bg-slate-900/80 p-6 shadow-xs backdrop-blur transition-colors duration-200">
-          <h2 className="font-semibold text-slate-900 dark:text-slate-200">Language distribution</h2>
-          {developer.data.languages.length ? (
-            <div className="mt-5 space-y-3">
-              {developer.data.languages.map(l => (
-                <div key={l.name}>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-700 dark:text-slate-300 font-medium">{l.name}</span>
-                    <span className="font-medium text-slate-500 dark:text-slate-400">{l.percent}%</span>
+        {/* Tab 1: Overview & Commits Chart */}
+        {(activeTab === 'overview' || activeTab === 'commits') && (
+          <div className="space-y-6">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Commits Over Time</h2>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Last 90 Days</span>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.06] dark:bg-[#080B12] p-4 transition-colors">
+                <AreaCommitChart data={historyCommits} height={200} />
+              </div>
+            </div>
+
+            {/* Summary Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4 transition-colors">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Total Commits</span>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 font-mono">
+                  {totalCommitsCount.toLocaleString()}
+                </p>
+                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mt-1 inline-block">
+                  Synced commits
+                </span>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4 transition-colors">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Repositories</span>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 font-mono">{reposList.length}</p>
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1 inline-block">
+                  Active codebases
+                </span>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4 transition-colors">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Coding Streak</span>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 font-mono">
+                  {devData?.coding_streak || 0}
+                </p>
+                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 mt-1 inline-block">
+                  Consecutive days
+                </span>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4 transition-colors">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Review Score</span>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 font-mono">
+                  {devData?.review_score || 0}
+                </p>
+                <span className="text-[10px] font-medium text-purple-600 dark:text-purple-400 mt-1 inline-block">
+                  / 100 Index
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Pull Requests */}
+        {activeTab === 'prs' && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Pull Request Velocity & Merge Rates</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Average PR Merge Rate</span>
+                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1 font-mono">
+                  {avgMergeRate}%
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">Across all synced repositories</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Monitored Repositories</span>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 font-mono">
+                  {reposList.length}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">Synced with GitHub webhooks</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Review Turnaround Index</span>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+                  {devData?.review_score || 0}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">Peer review participation</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 4: Issues */}
+        {activeTab === 'issues' && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Issue Resolution Velocity</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Average Issue Resolution Rate</span>
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1 font-mono">
+                  {avgIssueRate}%
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">Issue closure rate</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-4">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Tracked Repositories</span>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 font-mono">
+                  {reposList.length}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">Synchronized issues & bugs</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 5: Contributors */}
+        {activeTab === 'contributors' && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Top Active Contributors</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {metricsList.map((m) => (
+                <div key={m.repository_id} className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-[#080B12] p-3.5 flex items-center justify-between">
+                  <div className="truncate mr-2">
+                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{m.name}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Health: {m.health_score}/100</p>
                   </div>
-                  <div className="mt-1.5 h-2 rounded bg-slate-100 dark:bg-slate-800">
-                    <div className="h-2 rounded bg-blue-500 transition-all duration-500" style={{ width: `${l.percent}%` }} />
+                  <div className="text-right font-mono text-xs shrink-0">
+                    <span className="text-brand-purple font-bold">{m.activity_score} Activity</span>
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No language data yet.</p>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800/90 dark:bg-slate-900/80 p-6 shadow-xs backdrop-blur transition-colors duration-200">
-          <h2 className="font-semibold text-slate-900 dark:text-slate-200">Repository health</h2>
-          <div className="mt-4 space-y-3">
-            {repositories.data.length ? (
-              repositories.data.map(repo => (
-                <div key={repo.repository_id} className="flex justify-between items-center text-sm py-1 border-b border-slate-100 dark:border-slate-800/50 last:border-0">
-                  <span className="truncate text-slate-700 dark:text-slate-300">{repo.name}</span>
-                  <span className="font-semibold text-slate-900 dark:text-slate-200 ml-3">{repo.health_score}/100</span>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">No repositories yet.</p>
-            )}
           </div>
-        </div>
-      </section>
+        )}
+      </div>
     </div>
   );
 }
