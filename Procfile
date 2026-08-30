@@ -1,1 +1,1 @@
-web: sh backend/start-railway.sh
+web: sh start-railway.sh
