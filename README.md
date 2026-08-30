@@ -126,7 +126,8 @@ flowchart TB
 - 📐 [Architecture Documentation](docs/ARCHITECTURE.md)
 - 🗄️ [Entity-Relationship (ER) Diagrams](docs/ER_DIAGRAMS.md)
 - 📚 [REST & WebSocket API Reference](docs/API_REFERENCE.md)
-- 🚀 [Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- ☁️ [Railway & Vercel Deployment Guide](docs/DEPLOYMENT_RAILWAY_VERCEL.md)
+- 🚀 [Docker & Self-Hosted Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
 - 📈 [Scaling & High-Availability Guide](docs/SCALING_GUIDE.md)
 - 💻 [Developer Handbook](docs/DEVELOPER_HANDBOOK.md)
 

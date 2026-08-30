@@ -27,3 +27,39 @@ def test_rate_limiter_memory():
     assert allowed is False
     assert remaining == 0
     assert reset_after > 0
+
+
+def test_database_url_normalization():
+    from app.core.config import Settings
+    
+    s1 = Settings(database_url="postgres://user:pass@host:5432/db")
+    assert s1.database_url == "postgresql+psycopg://user:pass@host:5432/db"
+
+    s2 = Settings(database_url="postgresql://user:pass@host:5432/db")
+    assert s2.database_url == "postgresql+psycopg://user:pass@host:5432/db"
+
+    s3 = Settings(database_url="sqlite:///./test.db")
+    assert s3.database_url == "sqlite:///./test.db"
+
+
+def test_cors_vercel_and_railway_origins(client):
+    # Test Vercel frontend origin
+    resp1 = client.options(
+        "/api/v1/health",
+        headers={
+            "Origin": "https://repohub.vercel.app",
+            "Access-Control-Request-Method": "GET",
+        }
+    )
+    assert resp1.headers.get("access-control-allow-origin") == "https://repohub.vercel.app"
+
+    # Test Railway domain origin
+    resp2 = client.options(
+        "/api/v1/health",
+        headers={
+            "Origin": "https://repohub-web.up.railway.app",
+            "Access-Control-Request-Method": "GET",
+        }
+    )
+    assert resp2.headers.get("access-control-allow-origin") == "https://repohub-web.up.railway.app"
+
