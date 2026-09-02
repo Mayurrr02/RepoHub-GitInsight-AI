@@ -23,7 +23,9 @@ export function LoginPage() {
       setIsLoading(false);
       const detail = err.response?.data?.detail;
       const status = err.response?.status;
-      if (detail) {
+      if (status === 405) {
+        setError('Received 405 Method Not Allowed. Please ensure VITE_API_URL in Vercel is set to your Railway backend URL (e.g. https://your-app.up.railway.app) and redeployed.');
+      } else if (detail) {
         setError(typeof detail === 'string' ? detail : JSON.stringify(detail));
       } else if (err.message === 'Network Error') {
         setError(`Unable to reach the RepoHub backend API. Please ensure the backend server is running.`);

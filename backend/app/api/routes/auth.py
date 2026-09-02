@@ -12,7 +12,7 @@ from app.services.github import exchange_code, fetch_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@router.post("/github/login", summary="Start GitHub OAuth login")
+@router.api_route("/github/login", methods=["GET", "POST"], summary="Start GitHub OAuth login")
 def github_login(request: Request):
     s = get_settings()
     if not s.github_client_id:
@@ -24,12 +24,26 @@ def github_login(request: Request):
     # Determine redirect_uri dynamically if using default localhost but running on cloud
     redirect_uri = s.github_redirect_uri
     if not redirect_uri or redirect_uri == "http://localhost:8000/api/v1/auth/github/callback":
-        base_url = str(request.base_url).rstrip("/")
-        if "onrender.com" in base_url or ("localhost" not in base_url and "127.0.0.1" not in base_url):
+        # Check forwarded headers first (from Railway / Cloud proxy)
+        proto = request.headers.get("x-forwarded-proto", "https" if "https" in str(request.base_url) else "http")
+        host = request.headers.get("x-forwarded-host", request.headers.get("host", str(request.base_url).split("/")[2]))
+        if "localhost" not in host and "127.0.0.1" not in host:
+            redirect_uri = f"https://{host}/api/v1/auth/github/callback"
+        else:
+            base_url = str(request.base_url).rstrip("/")
             redirect_uri = f"{base_url}/api/v1/auth/github/callback"
 
+    if redirect_uri.startswith("http://") and ("railway" in redirect_uri or "onrender" in redirect_uri or "vercel" in redirect_uri):
+        redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
     query = urlencode({"client_id": s.github_client_id, "redirect_uri": redirect_uri, "scope": "read:user repo"})
-    return {"authorization_url": f"https://github.com/login/oauth/authorize?{query}"}
+    auth_url = f"https://github.com/login/oauth/authorize?{query}"
+
+    # If accessed directly in browser via GET, redirect directly to GitHub
+    if request.method == "GET" and "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse(auth_url)
+
+    return {"authorization_url": auth_url}
 
 @router.get("/github/callback", include_in_schema=False)
 async def github_callback(code: str, request: Request, db: Session = Depends(get_db)):
