@@ -22,19 +22,24 @@ def github_login(request: Request):
         )
 
     # Determine redirect_uri dynamically if using default localhost but running on cloud
-    redirect_uri = s.github_redirect_uri
-    if not redirect_uri or redirect_uri == "http://localhost:8000/api/v1/auth/github/callback":
-        # Check forwarded headers first (from Railway / Cloud proxy)
-        proto = request.headers.get("x-forwarded-proto", "https" if "https" in str(request.base_url) else "http")
-        host = request.headers.get("x-forwarded-host", request.headers.get("host", str(request.base_url).split("/")[2]))
-        if "localhost" not in host and "127.0.0.1" not in host:
-            redirect_uri = f"https://{host}/api/v1/auth/github/callback"
+    redirect_uri = s.github_redirect_uri.strip() if s.github_redirect_uri else ""
+    if not redirect_uri or "localhost:8000" in redirect_uri:
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        # Strip internal port if present (e.g. host might be backend.up.railway.app:8080)
+        host = host.split(":")[0]
+        if host and host not in ("localhost", "127.0.0.1", "0.0.0.0", "testserver"):
+            proto = request.headers.get("x-forwarded-proto", "https")
+            redirect_uri = f"{proto}://{host}/api/v1/auth/github/callback"
         else:
             base_url = str(request.base_url).rstrip("/")
             redirect_uri = f"{base_url}/api/v1/auth/github/callback"
 
-    if redirect_uri.startswith("http://") and ("railway" in redirect_uri or "onrender" in redirect_uri or "vercel" in redirect_uri):
-        redirect_uri = redirect_uri.replace("http://", "https://", 1)
+    # Always enforce https on cloud environments
+    if not redirect_uri.startswith("http://localhost") and not redirect_uri.startswith("http://127.0.0.1"):
+        if redirect_uri.startswith("http://"):
+            redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
+    redirect_uri = redirect_uri.rstrip("/")
 
     query = urlencode({"client_id": s.github_client_id, "redirect_uri": redirect_uri, "scope": "read:user repo"})
     auth_url = f"https://github.com/login/oauth/authorize?{query}"
