@@ -70,3 +70,61 @@ export const getRepositoryDetail = (id: number) => api.get<RepositoryDetail>(`/r
 export const syncRepositories = () => api.post('/repositories/sync').then(r => r.data);
 export const getMe = () => api.get<{ login: string; name: string | null; avatar_url: string | null }>('/users/me').then(r => r.data);
 
+
+
+export type RepositoryIntelligence = {
+  repository_id: number;
+  name: string;
+  full_name: string;
+  default_branch: string;
+  last_commit_sha: string | null;
+  indexed_commit_sha: string | null;
+  indexing_status: string;
+  indexed_files_count: number;
+  indexed_chunks_count: number;
+  total_symbols_count: number;
+  last_sync_at: string | null;
+};
+
+export type FileSearchHit = {
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  name: string | null;
+  chunk_type: string;
+  language: string;
+  snippet: string;
+  score: number;
+};
+
+export type FileSearchResult = {
+  query: string;
+  repository_id: number;
+  total_hits: number;
+  results: FileSearchHit[];
+};
+
+export type FileContent = {
+  repository_id: number;
+  path: string;
+  revision: string;
+  content: string;
+  size: number;
+  total_lines: number;
+};
+
+export const getRepositoryIntelligence = (id: number) =>
+  api.get<RepositoryIntelligence>(`/repositories/${id}/intelligence`).then((r) => r.data);
+
+export const searchRepositoryFiles = (id: number, q: string) =>
+  api.get<FileSearchResult>(`/repositories/${id}/files/search`, { params: { q } }).then((r) => r.data);
+
+export const getRepositoryFileContent = (id: number, path: string, start_line = 1, end_line = 100) =>
+  api
+    .get<FileContent>(`/repositories/${id}/files/content`, {
+      params: { path, start_line, end_line },
+    })
+    .then((r) => r.data);
+
+export const triggerCodeIndexing = (id: number, revision?: string) =>
+  api.post(`/repositories/${id}/index-code`, {}, { params: { revision } }).then((r) => r.data);

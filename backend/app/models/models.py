@@ -20,11 +20,13 @@ class User(Base):
     name: Mapped[str | None] = mapped_column(String(255))
     avatar_url: Mapped[str | None] = mapped_column(String(2048))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
     github_account: Mapped["GitHubAccount"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
     repositories: Mapped[list["Repository"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     organization_memberships: Mapped[list["OrganizationMember"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     owned_organizations: Mapped[list["Organization"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ai_conversations: Mapped[list["AIConversation"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class GitHubAccount(Base):
@@ -90,9 +92,37 @@ class Repository(Base):
     language: Mapped[str | None] = mapped_column(String(64))
     stars: Mapped[int] = mapped_column(default=0)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    default_branch: Mapped[str | None] = mapped_column(String(255), default="main")
 
     user: Mapped[User] = relationship(back_populates="repositories")
     organization_links: Mapped[list[OrganizationRepository]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    commits: Mapped[list["Commit"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    pull_requests: Mapped[list["PullRequest"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    issues: Mapped[list["Issue"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    releases: Mapped[list["Release"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    contributors: Mapped[list["Contributor"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    languages: Mapped[list["Language"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    metric: Mapped["RepositoryMetric | None"] = relationship(back_populates="repository", uselist=False, cascade="all, delete-orphan")
+    branches: Mapped[list["Branch"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    commit_file_changes: Mapped[list["CommitFileChange"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    code_chunks: Mapped[list["CodeChunk"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    code_symbols: Mapped[list["CodeSymbol"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    sync_cursor: Mapped["RepositorySyncCursor | None"] = relationship(back_populates="repository", uselist=False, cascade="all, delete-orphan")
+    conversations: Mapped[list["AIConversation"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+
+
+class Branch(Base):
+    __tablename__ = "branches"
+    __table_args__ = (UniqueConstraint("repository_id", "name", name="uq_branch_repository_name"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    commit_sha: Mapped[str] = mapped_column(String(64))
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_protected: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    repository: Mapped[Repository] = relationship(back_populates="branches")
 
 
 class Commit(Base):
@@ -104,6 +134,39 @@ class Commit(Base):
     author_login: Mapped[str | None] = mapped_column(String(255), index=True)
     message: Mapped[str] = mapped_column(Text)
     committed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+    # Phase 1 Extensions
+    parent_shas: Mapped[str | None] = mapped_column(Text)  # JSON-encoded array
+    author_name: Mapped[str | None] = mapped_column(String(255))
+    author_email: Mapped[str | None] = mapped_column(String(255))
+    committer_name: Mapped[str | None] = mapped_column(String(255))
+    committer_email: Mapped[str | None] = mapped_column(String(255))
+    additions: Mapped[int] = mapped_column(Integer, default=0)
+    deletions: Mapped[int] = mapped_column(Integer, default=0)
+    total_changes: Mapped[int] = mapped_column(Integer, default=0)
+    files_changed_count: Mapped[int] = mapped_column(Integer, default=0)
+    commit_url: Mapped[str | None] = mapped_column(String(2048))
+
+    repository: Mapped[Repository] = relationship(back_populates="commits")
+    file_changes: Mapped[list["CommitFileChange"]] = relationship(back_populates="commit", cascade="all, delete-orphan")
+
+
+class CommitFileChange(Base):
+    __tablename__ = "commit_file_changes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    commit_id: Mapped[int] = mapped_column(ForeignKey("commits.id", ondelete="CASCADE"), index=True)
+    repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    file_path: Mapped[str] = mapped_column(String(1024), index=True)
+    status: Mapped[str] = mapped_column(String(32))  # added, modified, removed, renamed
+    additions: Mapped[int] = mapped_column(Integer, default=0)
+    deletions: Mapped[int] = mapped_column(Integer, default=0)
+    changes: Mapped[int] = mapped_column(Integer, default=0)
+    patch: Mapped[str | None] = mapped_column(Text)
+    previous_filename: Mapped[str | None] = mapped_column(String(1024))
+    blob_sha: Mapped[str | None] = mapped_column(String(64))
+
+    commit: Mapped[Commit] = relationship(back_populates="file_changes")
+    repository: Mapped[Repository] = relationship(back_populates="commit_file_changes")
 
 
 class PullRequest(Base):
@@ -119,6 +182,37 @@ class PullRequest(Base):
     merged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Phase 1 Extensions
+    title: Mapped[str | None] = mapped_column(String(512))
+    body: Mapped[str | None] = mapped_column(Text)
+    base_branch: Mapped[str | None] = mapped_column(String(255))
+    head_branch: Mapped[str | None] = mapped_column(String(255))
+    base_sha: Mapped[str | None] = mapped_column(String(64))
+    head_sha: Mapped[str | None] = mapped_column(String(64))
+    additions: Mapped[int] = mapped_column(Integer, default=0)
+    deletions: Mapped[int] = mapped_column(Integer, default=0)
+    changed_files_count: Mapped[int] = mapped_column(Integer, default=0)
+    merge_commit_sha: Mapped[str | None] = mapped_column(String(64))
+    labels: Mapped[str | None] = mapped_column(Text)  # JSON array
+
+    repository: Mapped[Repository] = relationship(back_populates="pull_requests")
+    reviews: Mapped[list["Review"]] = relationship(back_populates="pull_request", cascade="all, delete-orphan")
+    files: Mapped[list["PullRequestFile"]] = relationship(back_populates="pull_request", cascade="all, delete-orphan")
+    review_comments: Mapped[list["ReviewComment"]] = relationship(back_populates="pull_request", cascade="all, delete-orphan")
+
+
+class PullRequestFile(Base):
+    __tablename__ = "pull_request_files"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pull_request_id: Mapped[int] = mapped_column(ForeignKey("pull_requests.id", ondelete="CASCADE"), index=True)
+    file_path: Mapped[str] = mapped_column(String(1024))
+    status: Mapped[str] = mapped_column(String(32))
+    additions: Mapped[int] = mapped_column(Integer, default=0)
+    deletions: Mapped[int] = mapped_column(Integer, default=0)
+    patch: Mapped[str | None] = mapped_column(Text)
+
+    pull_request: Mapped[PullRequest] = relationship(back_populates="files")
+
 
 class Issue(Base):
     __tablename__ = "issues"
@@ -129,6 +223,30 @@ class Issue(Base):
     state: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Phase 1 Extensions
+    number: Mapped[int | None] = mapped_column(Integer)
+    title: Mapped[str | None] = mapped_column(String(512))
+    body: Mapped[str | None] = mapped_column(Text)
+    author_login: Mapped[str | None] = mapped_column(String(255))
+    labels: Mapped[str | None] = mapped_column(Text)  # JSON array
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    repository: Mapped[Repository] = relationship(back_populates="issues")
+    comments: Mapped[list["IssueComment"]] = relationship(back_populates="issue", cascade="all, delete-orphan")
+
+
+class IssueComment(Base):
+    __tablename__ = "issue_comments"
+    __table_args__ = (UniqueConstraint("issue_id", "github_id", name="uq_issue_comment_github"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    issue_id: Mapped[int] = mapped_column(ForeignKey("issues.id", ondelete="CASCADE"), index=True)
+    github_id: Mapped[int] = mapped_column(Integer)
+    author_login: Mapped[str | None] = mapped_column(String(255))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    issue: Mapped[Issue] = relationship(back_populates="comments")
 
 
 class Review(Base):
@@ -141,6 +259,31 @@ class Review(Base):
     state: Mapped[str] = mapped_column(String(32))
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Phase 1 Extensions
+    body: Mapped[str | None] = mapped_column(Text)
+    commit_sha: Mapped[str | None] = mapped_column(String(64))
+
+    pull_request: Mapped[PullRequest] = relationship(back_populates="reviews")
+    comments: Mapped[list["ReviewComment"]] = relationship(back_populates="review", cascade="all, delete-orphan")
+
+
+class ReviewComment(Base):
+    __tablename__ = "review_comments"
+    __table_args__ = (UniqueConstraint("pull_request_id", "github_id", name="uq_review_comment_pr_github"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    review_id: Mapped[int | None] = mapped_column(ForeignKey("reviews.id", ondelete="CASCADE"), index=True)
+    pull_request_id: Mapped[int] = mapped_column(ForeignKey("pull_requests.id", ondelete="CASCADE"), index=True)
+    github_id: Mapped[int] = mapped_column(Integer)
+    path: Mapped[str | None] = mapped_column(String(1024))
+    line: Mapped[int | None] = mapped_column(Integer)
+    commit_sha: Mapped[str | None] = mapped_column(String(64))
+    body: Mapped[str] = mapped_column(Text)
+    author_login: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    review: Mapped[Review | None] = relationship(back_populates="comments")
+    pull_request: Mapped[PullRequest] = relationship(back_populates="review_comments")
+
 
 class Release(Base):
     __tablename__ = "releases"
@@ -150,6 +293,8 @@ class Release(Base):
     github_id: Mapped[int] = mapped_column(Integer)
     name: Mapped[str | None] = mapped_column(String(255))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    repository: Mapped[Repository] = relationship(back_populates="releases")
 
 
 class Contributor(Base):
@@ -161,6 +306,8 @@ class Contributor(Base):
     login: Mapped[str] = mapped_column(String(255))
     contributions: Mapped[int] = mapped_column(Integer, default=0)
 
+    repository: Mapped[Repository] = relationship(back_populates="contributors")
+
 
 class Language(Base):
     __tablename__ = "languages"
@@ -169,6 +316,8 @@ class Language(Base):
     repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(128))
     bytes: Mapped[int] = mapped_column(Integer)
+
+    repository: Mapped[Repository] = relationship(back_populates="languages")
 
 
 class DeveloperMetric(Base):
@@ -197,11 +346,14 @@ class RepositoryMetric(Base):
     maintenance_score: Mapped[float] = mapped_column(Float, default=0)
     calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    repository: Mapped[Repository] = relationship(back_populates="metric")
+
 
 class AIReport(Base):
     __tablename__ = "ai_reports"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    repository_id: Mapped[int | None] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
     status: Mapped[str] = mapped_column(String(32), default="queued")
     content: Mapped[str | None] = mapped_column(Text)
     file_path: Mapped[str | None] = mapped_column(String(1024))
@@ -259,3 +411,113 @@ class ApiKey(Base):
     user: Mapped[User] = relationship(back_populates="api_keys")
 
 
+# ============================================================
+# PHASE 1 EXTENSIONS: CODE INTELLIGENCE, WEBHOOKS, CONVERSATIONS
+# ============================================================
+
+class CodeChunk(Base):
+    __tablename__ = "code_chunks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    commit_sha: Mapped[str] = mapped_column(String(64), index=True)
+    file_path: Mapped[str] = mapped_column(String(1024), index=True)
+    start_line: Mapped[int] = mapped_column(Integer)
+    end_line: Mapped[int] = mapped_column(Integer)
+    language: Mapped[str] = mapped_column(String(64))
+    chunk_type: Mapped[str] = mapped_column(String(32))  # function, class, method, module, fallback
+    name: Mapped[str | None] = mapped_column(String(255))
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[str | None] = mapped_column(Text)  # JSON-encoded array of floats
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    repository: Mapped[Repository] = relationship(back_populates="code_chunks")
+
+
+class CodeSymbol(Base):
+    __tablename__ = "code_symbols"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    commit_sha: Mapped[str] = mapped_column(String(64), index=True)
+    file_path: Mapped[str] = mapped_column(String(1024), index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    kind: Mapped[str] = mapped_column(String(32))  # function, class, method, interface
+    start_line: Mapped[int] = mapped_column(Integer)
+    end_line: Mapped[int] = mapped_column(Integer)
+    signature: Mapped[str | None] = mapped_column(Text)
+    docstring: Mapped[str | None] = mapped_column(Text)
+
+    repository: Mapped[Repository] = relationship(back_populates="code_symbols")
+
+
+class RepositorySyncCursor(Base):
+    __tablename__ = "repository_sync_cursors"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), unique=True, index=True)
+    default_branch: Mapped[str | None] = mapped_column(String(255), default="main")
+    last_commit_sha: Mapped[str | None] = mapped_column(String(64))
+    indexed_commit_sha: Mapped[str | None] = mapped_column(String(64))
+    indexed_files_count: Mapped[int] = mapped_column(Integer, default=0)
+    indexed_chunks_count: Mapped[int] = mapped_column(Integer, default=0)
+    indexing_status: Mapped[str] = mapped_column(String(32), default="idle")  # idle, running, completed, failed
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+    repository: Mapped[Repository] = relationship(back_populates="sync_cursor")
+
+
+class WebhookDelivery(Base):
+    __tablename__ = "webhook_deliveries"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    delivery_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    event: Mapped[str] = mapped_column(String(64), index=True)
+    repository_id: Mapped[int | None] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32), default="received")  # received, processed, failed, ignored
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class AIConversation(Base):
+    __tablename__ = "ai_conversations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    repository_id: Mapped[int | None] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user: Mapped[User] = relationship(back_populates="ai_conversations")
+    repository: Mapped[Repository | None] = relationship(back_populates="conversations")
+    messages: Mapped[list["AIMessage"]] = relationship(back_populates="conversation", cascade="all, delete-orphan", order_by="AIMessage.id")
+    tool_logs: Mapped[list["AIToolLog"]] = relationship(back_populates="conversation", cascade="all, delete-orphan")
+
+
+class AIMessage(Base):
+    __tablename__ = "ai_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("ai_conversations.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(32))  # user, assistant, system, tool
+    content: Mapped[str] = mapped_column(Text)
+    tool_calls: Mapped[str | None] = mapped_column(Text)  # JSON-encoded list of tool calls
+    tool_call_id: Mapped[str | None] = mapped_column(String(128))
+    grounded_references: Mapped[str | None] = mapped_column(Text)  # JSON-encoded list of citations
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    conversation: Mapped[AIConversation] = relationship(back_populates="messages")
+
+
+class AIToolLog(Base):
+    __tablename__ = "ai_tool_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("ai_conversations.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    repository_id: Mapped[int | None] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    tool_name: Mapped[str] = mapped_column(String(128), index=True)
+    arguments: Mapped[str] = mapped_column(Text)  # JSON string
+    result_summary: Mapped[str | None] = mapped_column(Text)
+    duration_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    conversation: Mapped[AIConversation | None] = relationship(back_populates="tool_logs")

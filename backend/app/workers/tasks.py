@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from datetime import datetime, timezone
 from app.core.metrics import celery_task_duration_seconds, sync_jobs_total
@@ -6,8 +7,11 @@ from app.core.ws_manager import publish_realtime_event
 from app.db.session import SessionLocal
 from app.models import GitHubAccount, Notification, Repository, SyncJob
 from app.services.analytics import calculate_developer_metrics, calculate_repository_metrics
+from app.services.code_indexer import index_repository_revision
 from app.services.github import fetch_repositories, fetch_repository_data, persist_repositories, persist_repository_data
 from app.workers.celery_app import celery_app
+
+logger = logging.getLogger("repohub.workers")
 
 
 @celery_app.task(name="repositories.sync")
@@ -46,8 +50,8 @@ def sync_repositories(job_id: int) -> int:
             data={
                 "job_id": job.id,
                 "status": "running",
-                "progress": 35,
-                "step": f"Synced {count} repositories. Ingesting commits, pull requests, and reviews...",
+                "progress": 30,
+                "step": f"Synced {count} repositories. Ingesting full commit history, diffs, and pull requests...",
             },
             user_id=user_id,
         )
@@ -60,14 +64,20 @@ def sync_repositories(job_id: int) -> int:
             persist_repository_data(db, repository, repo_data)
             calculate_repository_metrics(db, repository)
 
-            progress_pct = min(85, 35 + int((idx / total_repos) * 50))
+            # Revision-aware source code indexing
+            try:
+                asyncio.run(index_repository_revision(db, repository, account.access_token))
+            except Exception as index_exc:
+                logger.warning(f"Code indexing skipped or failed for {repository.name}: {index_exc}")
+
+            progress_pct = min(85, 30 + int((idx / total_repos) * 55))
             publish_realtime_event(
                 event="sync_progress",
                 data={
                     "job_id": job.id,
                     "status": "running",
                     "progress": progress_pct,
-                    "step": f"Processing ({idx}/{total_repos}): {repository.name}...",
+                    "step": f"Indexed ({idx}/{total_repos}): {repository.name}...",
                 },
                 user_id=user_id,
             )
@@ -92,7 +102,7 @@ def sync_repositories(job_id: int) -> int:
         notification = Notification(
             user_id=user_id,
             type="sync_completed",
-            message=f"Successfully synced {count} repositories with full analytics.",
+            message=f"Successfully synced {count} repositories with full code intelligence.",
             read=False,
         )
         db.add(notification)

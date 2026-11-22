@@ -1,3 +1,12 @@
+def test_root_endpoint(client):
+    resp = client.get("/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "RepoHub Enterprise API"
+    assert data["status"] == "online"
+    assert data["docs"] == "/docs"
+
+
 def test_health_checks(client):
     # Liveness probe
     live_resp = client.get("/health/live")
