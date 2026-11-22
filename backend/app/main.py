@@ -111,7 +111,7 @@ async def unhandled_exception(request: Request, exc: Exception):
 @app.get("/", tags=["Root"])
 def root_endpoint():
     return {
-        "name": "RepoHub Enterprise API",
+        "name": "RepoHub Analytics API",
         "version": "1.0.0",
         "status": "online",
         "docs": "/docs",
