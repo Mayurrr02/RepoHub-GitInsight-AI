@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
+    model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
     database_url: str = "sqlite:///./repo_hub.db"
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret_key: str = "development-only-change-me"
@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     github_client_id: str = ""
     github_client_secret: str = ""
     github_redirect_uri: str = "http://localhost:8000/api/v1/auth/github/callback"
+    github_webhook_secret: str | None = None
     frontend_url: str = "http://localhost:5173"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.5-flash"

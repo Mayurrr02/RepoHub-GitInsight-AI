@@ -8,6 +8,7 @@ from app.api.routes import (
     repositories,
     team_analytics,
     users,
+    webhooks,
     ws,
 )
 
@@ -20,4 +21,5 @@ api_router.include_router(ai.router)
 api_router.include_router(organizations.router)
 api_router.include_router(team_analytics.router)
 api_router.include_router(audit_logs.router)
+api_router.include_router(webhooks.router)
 api_router.include_router(ws.router)

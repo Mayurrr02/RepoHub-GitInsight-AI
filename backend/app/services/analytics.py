@@ -112,3 +112,69 @@ def language_distribution(db: Session, user_id: int) -> list[dict]:
     total = sum(row[1] for row in rows) or 1
     return [{"name": name, "bytes": size, "percent": round(size * 100 / total, 1)} for name, size in rows]
 
+
+
+
+def calculate_code_churn(db: Session, repository_id: int, days: int = 30) -> dict:
+    """Calculate additions, deletions, and net code churn over a time window."""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    commits = db.scalars(
+        select(Commit).where(Commit.repository_id == repository_id, Commit.committed_at >= since)
+    ).all()
+
+    total_additions = sum(c.additions for c in commits)
+    total_deletions = sum(c.deletions for c in commits)
+    net_churn = total_additions - total_deletions
+
+    return {
+        "days": days,
+        "commits_analyzed": len(commits),
+        "total_additions": total_additions,
+        "total_deletions": total_deletions,
+        "net_churn": net_churn,
+    }
+
+
+def get_most_modified_files(db: Session, repository_id: int, limit: int = 10) -> list[dict]:
+    """Identify codebase modification hotspots (most frequently modified files)."""
+    from app.models import CommitFileChange
+    rows = db.execute(
+        select(CommitFileChange.file_path, func.count(CommitFileChange.id).label("change_count"))
+        .where(CommitFileChange.repository_id == repository_id)
+        .group_by(CommitFileChange.file_path)
+        .order_by(func.count(CommitFileChange.id).desc())
+        .limit(limit)
+    ).all()
+
+    return [{"file_path": row[0], "change_count": row[1]} for row in rows]
+
+
+def get_pr_turnaround_metrics(db: Session, repository_id: int) -> dict:
+    """Analyze PR review turnaround and merge duration."""
+    prs = db.scalars(
+        select(PullRequest).where(PullRequest.repository_id == repository_id)
+    ).all()
+
+    merged_prs = [pr for pr in prs if pr.merged_at and pr.created_at]
+    merge_hours = [
+        max(0.1, (pr.merged_at - pr.created_at).total_seconds() / 3600.0)
+        for pr in merged_prs
+    ]
+
+    avg_merge_hours = round(sum(merge_hours) / len(merge_hours), 1) if merge_hours else 0.0
+
+    open_prs = [pr for pr in prs if pr.state == "open" and pr.created_at]
+    now = datetime.now(timezone.utc)
+    open_age_hours = [
+        max(0.1, (now - _to_utc(pr.created_at)).total_seconds() / 3600.0)
+        for pr in open_prs
+    ]
+    avg_open_age_hours = round(sum(open_age_hours) / len(open_age_hours), 1) if open_age_hours else 0.0
+
+    return {
+        "total_prs": len(prs),
+        "merged_prs_count": len(merged_prs),
+        "open_prs_count": len(open_prs),
+        "average_merge_time_hours": avg_merge_hours,
+        "average_open_pr_age_hours": avg_open_age_hours,
+    }

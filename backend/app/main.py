@@ -108,6 +108,19 @@ async def unhandled_exception(request: Request, exc: Exception):
 
 
 # Root Observability & Health endpoints
+@app.get("/", tags=["Root"])
+def root_endpoint():
+    return {
+        "name": "RepoHub Enterprise API",
+        "version": "1.0.0",
+        "status": "online",
+        "docs": "/docs",
+        "redoc": "/redoc",
+        "health": "/health",
+        "api_v1": "/api/v1",
+    }
+
+
 app.include_router(health.router)
 app.include_router(metrics.router)
 app.include_router(ws.router)

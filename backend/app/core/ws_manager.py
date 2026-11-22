@@ -62,6 +62,10 @@ class WebSocketManager:
     async def start_redis_listener(self):
         """Subscribe to Redis pub/sub channel to distribute messages across instances with auto-reconnect."""
         settings = get_settings()
+        retry_delay = 5
+        max_delay = 60
+        consecutive_failures = 0
+
         while True:
             try:
                 kwargs: dict[str, Any] = {"decode_responses": True, "socket_timeout": 30}
@@ -72,6 +76,8 @@ class WebSocketManager:
                 pubsub = self._redis_client.pubsub()
                 await pubsub.subscribe(REDIS_EVENT_CHANNEL)
                 logger.info(f"Subscribed to Redis channel '{REDIS_EVENT_CHANNEL}'")
+                consecutive_failures = 0
+                retry_delay = 5
 
                 async for msg in pubsub.listen():
                     if msg["type"] == "message":
@@ -93,8 +99,16 @@ class WebSocketManager:
                 logger.info("Redis listener task cancelled.")
                 break
             except Exception as exc:
-                logger.warning(f"Redis pub/sub connection interrupted: {exc}. Retrying in 5s...")
-                await asyncio.sleep(5)
+                consecutive_failures += 1
+                if consecutive_failures == 1:
+                    logger.warning(
+                        f"Redis pub/sub connection unavailable ({exc}). "
+                        f"Operating in standalone in-memory mode. Retrying connection in background..."
+                    )
+                else:
+                    logger.debug(f"Redis pub/sub reconnect attempt failed: {exc}. Next retry in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, max_delay)
 
     def start_background_task(self):
         if not self._pubsub_task or self._pubsub_task.done():

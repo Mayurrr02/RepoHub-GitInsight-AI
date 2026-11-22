@@ -1,6 +1,11 @@
 import os
 os.environ["DATABASE_URL"] = "sqlite:///./test_repo_hub.db"
 os.environ["OPENAI_API_KEY"] = ""
+os.environ["GEMINI_API_KEY"] = ""
+
+from app.core.config import get_settings
+get_settings.cache_clear()
+
 import pytest
 from fastapi.testclient import TestClient
 from app.db.base import Base
