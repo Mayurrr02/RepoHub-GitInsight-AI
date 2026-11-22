@@ -72,8 +72,8 @@ def upgrade():
         sa.Column("repository_id", sa.Integer(), sa.ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("commit_sha", sa.String(64), nullable=False),
-        sa.Column("is_default", sa.Boolean(), server_default=sa.text("0"), nullable=False),
-        sa.Column("is_protected", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column("is_default", sa.Boolean(), server_default=sa.false(), nullable=False),
+        sa.Column("is_protected", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.UniqueConstraint("repository_id", "name", name="uq_branch_repository_name"),
     )

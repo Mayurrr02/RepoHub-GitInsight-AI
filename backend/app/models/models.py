@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Float, Boolean, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Float, Boolean, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -118,8 +118,8 @@ class Branch(Base):
     repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(255))
     commit_sha: Mapped[str] = mapped_column(String(64))
-    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_protected: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    is_protected: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     repository: Mapped[Repository] = relationship(back_populates="branches")
